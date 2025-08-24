@@ -34,25 +34,15 @@ jobs:
     - name: Create backend deployment package
       run: |
         mkdir -p backend-deploy
-        # Use the shadow JAR (fat JAR with all dependencies)
         cp build/libs/truepalserver-all.jar backend-deploy/app.jar
-        
-        # Create startup script
         cat > backend-deploy/start.sh << 'EOF'
         #!/bin/bash
-        
-        # Stop existing application
         sudo pkill -f "app.jar" || true
         sleep 5
-        
-        # Start new application
         cd /opt/truepal/backend
         nohup java -jar app.jar > /var/log/truepal/backend.log 2>&1 &
-        
         echo "Backend started"
         sleep 3
-        
-        # Check if application started successfully
         if pgrep -f "app.jar" > /dev/null; then
             echo "✅ Backend is running"
         else
@@ -60,7 +50,6 @@ jobs:
             exit 1
         fi
         EOF
-        
         chmod +x backend-deploy/start.sh
         tar -czf backend-deploy.tar.gz -C backend-deploy .
     
@@ -82,32 +71,20 @@ jobs:
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT || 22 }}
         script: |
-          # Create backend directories
           sudo mkdir -p /opt/truepal/backend
           sudo mkdir -p /var/log/truepal
-          
-          # Backup current backend
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
           if [ -f "/opt/truepal/backend/app.jar" ]; then
             sudo cp /opt/truepal/backend/app.jar /opt/truepal/backend/app.jar.backup.$TIMESTAMP
             echo "Backend backup created"
           fi
-          
-          # Extract new backend
           cd /tmp
           sudo tar -xzf backend-deploy.tar.gz -C /opt/truepal/backend/
-          
-          # Set permissions for the 'deploy' user (or your SSH user)
-          sudo chown -R ${{ secrets.VPS_USER }}:${{ secrets.VPS_USER }} /opt/truepal/backend
-          sudo chmod +x /opt/truepal/backend/start.sh
+          sudo chown -R ${{ secrets.VPS_USER }}:${{ secrets.VPS_USER }} /opt/truepal
           sudo chown -R ${{ secrets.VPS_USER }}:${{ secrets.VPS_USER }} /var/log/truepal
-          
-          # Start backend
+          sudo chmod +x /opt/truepal/backend/start.sh
           /opt/truepal/backend/start.sh
-          
-          # Clean up
           rm -f /tmp/backend-deploy.tar.gz
-          
           echo "✅ Backend deployment completed"
     
     # =====================
@@ -156,42 +133,28 @@ jobs:
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT || 22 }}
         script: |
-          # Create backup and web directories
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
           sudo mkdir -p /var/www/truepal/backups
-          
-          # Create a backup if the directory is not empty
           if [ -d "/var/www/truepal/dist" ] && [ "$(ls -A /var/www/truepal/dist/)" ]; then
             sudo cp -r /var/www/truepal/dist /var/www/truepal/backups/dist_backup_$TIMESTAMP
             echo "Frontend backup created"
           fi
-          
-          # Ensure frontend directory exists
           sudo mkdir -p /var/www/truepal/dist
-          
-          # Extract new frontend files
           cd /tmp
           if [ -f "frontend-deploy.tar.gz" ]; then
             echo "Extracting frontend files..."
-            # FIXED: Use sudo to extract files into the www-data owned directory
             sudo tar -xzf frontend-deploy.tar.gz -C /var/www/truepal/dist/
             echo "Frontend files extracted successfully"
           else
             echo "❌ Frontend deployment package not found!"
             exit 1
           fi
-          
-          # Set proper ownership and permissions for the web server
           sudo chown -R www-data:www-data /var/www/truepal
           sudo chmod -R 755 /var/www/truepal/dist
-          
-          # Verify frontend files exist
           if [ ! -f "/var/www/truepal/dist/index.html" ]; then
             echo "❌ index.html not found after extraction! Deployment failed."
             exit 1
           fi
-          
-          # Test and reload nginx
           sudo nginx -t
           if [ $? -eq 0 ]; then
             sudo systemctl reload nginx
@@ -200,14 +163,9 @@ jobs:
             echo "❌ Nginx configuration error"
             exit 1
           fi
-          
-          # Clean up
           rm -f /tmp/frontend-deploy.tar.gz
-          
-          # Clean old backups (keep last 5)
           cd /var/www/truepal/backups || true
           ls -t | tail -n +6 | xargs -r sudo rm -rf
-          
           echo "✅ Frontend deployment completed"
     
     # =====================
@@ -223,40 +181,29 @@ jobs:
         port: ${{ secrets.VPS_PORT || 22 }}
         script: |
           echo "🔍 Running health checks..."
-          
-          # Wait for backend to fully start
           sleep 15
-          
-          # Check backend process
           if pgrep -f "app.jar" > /dev/null; then
             echo "✅ Backend process is running"
           else
             echo "❌ Backend process not found"
             exit 1
           fi
-          
-          # Check backend HTTP (adjust port and endpoint if needed)
           if curl --fail http://localhost:8080/health 2>/dev/null; then
             echo "✅ Backend health check passed"
           else
             echo "⚠️  Backend health check failed"
           fi
-          
-          # Check frontend files
           if [ -f "/var/www/truepal/dist/index.html" ]; then
             echo "✅ Frontend index.html is deployed"
           else
             echo "❌ Frontend index.html is missing"
             exit 1
           fi
-          
-          # Check nginx
           if sudo systemctl is-active --quiet nginx; then
             echo "✅ Nginx service is active"
           else
             echo "❌ Nginx service is not running"
           fi
-          
           echo ""
           echo "🚀 Full stack deployment completed!"
           echo "🌐 Frontend: http://${{ secrets.VPS_HOST }}"
