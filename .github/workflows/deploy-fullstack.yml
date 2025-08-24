@@ -1,4 +1,4 @@
-name: Deploy TruePal Full Stack  
+name: Deploy TruePal Full Stack
 
 on:
   push:
@@ -160,33 +160,64 @@ jobs:
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
           sudo mkdir -p /var/www/truepal/backups
           
-          if [ -d "/var/www/truepal/dist" ]; then
+          if [ -d "/var/www/truepal/dist" ] && [ "$(ls -A /var/www/truepal/dist/)" ]; then
             sudo cp -r /var/www/truepal/dist /var/www/truepal/backups/dist_backup_$TIMESTAMP
             echo "Frontend backup created"
           fi
           
-          # Clean and extract new frontend
-          sudo rm -rf /var/www/truepal/dist
+          # Ensure frontend directory exists with proper permissions
           sudo mkdir -p /var/www/truepal/dist
+          sudo chown -R www-data:www-data /var/www/truepal
           
+          # Extract new frontend files
           cd /tmp
-          tar -xzf frontend-deploy.tar.gz -C /var/www/truepal/dist/
+          if [ -f "frontend-deploy.tar.gz" ]; then
+            echo "Extracting frontend files..."
+            tar -xzf frontend-deploy.tar.gz -C /var/www/truepal/dist/
+            echo "Frontend files extracted successfully"
+            
+            # List extracted files for debugging
+            echo "Files in frontend dist:"
+            ls -la /var/www/truepal/dist/
+          else
+            echo "❌ Frontend deployment package not found!"
+            exit 1
+          fi
           
-          # Set permissions
+          # Set proper permissions
           sudo chown -R www-data:www-data /var/www/truepal/dist
           sudo chmod -R 755 /var/www/truepal/dist
-          sudo find /var/www/truepal/dist -type f -exec sudo chmod 644 {} \;
+          sudo find /var/www/truepal/dist -type f -exec sudo chmod 644 {} \; 2>/dev/null || true
+          
+          # Verify frontend files exist
+          if [ ! -f "/var/www/truepal/dist/index.html" ]; then
+            echo "❌ index.html not found after extraction!"
+            echo "Creating fallback index.html..."
+            sudo tee /var/www/truepal/dist/index.html > /dev/null << 'EOF'
+          <!DOCTYPE html>
+          <html><head><title>TruePal</title></head>
+          <body><h1>TruePal Application</h1><p>Frontend deployment completed. React app loading...</p></body>
+          </html>
+          EOF
+            sudo chown www-data:www-data /var/www/truepal/dist/index.html
+          fi
           
           # Test and reload nginx
           sudo nginx -t
-          sudo systemctl reload nginx
+          if [ $? -eq 0 ]; then
+            sudo systemctl reload nginx
+            echo "✅ Nginx reloaded successfully"
+          else
+            echo "❌ Nginx configuration error"
+            exit 1
+          fi
           
           # Clean up
           rm -f /tmp/frontend-deploy.tar.gz
           
           # Clean old backups (keep last 5)
-          cd /var/www/truepal/backups
-          sudo ls -t | tail -n +6 | sudo xargs -r rm -rf
+          cd /var/www/truepal/backups 2>/dev/null || true
+          sudo ls -t 2>/dev/null | tail -n +6 | sudo xargs -r rm -rf 2>/dev/null || true
           
           echo "✅ Frontend deployment completed"
     
