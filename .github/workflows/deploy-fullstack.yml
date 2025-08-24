@@ -36,7 +36,7 @@ jobs:
         mkdir -p backend-deploy
         cp build/libs/truepalserver-all.jar backend-deploy/app.jar
         
-        # FIXED: Simplified startup script to launch the process and exit immediately.
+        # FINAL FIX: Use 'disown' to fully detach the process from the SSH session.
         cat > backend-deploy/start.sh << 'EOF'
         #!/bin/bash
         
@@ -44,11 +44,11 @@ jobs:
         sudo pkill -f "app.jar" || true
         sleep 2
         
-        # Start new application in the background
+        # Start new application, redirect stdin, and disown it from the shell
         cd /opt/truepal/backend
-        nohup java -jar app.jar > /var/log/truepal/backend.log 2>&1 &
+        nohup java -jar app.jar < /dev/null > /var/log/truepal/backend.log 2>&1 & disown
         
-        echo "✅ Backend start command issued."
+        echo "✅ Backend start command issued and disowned."
         EOF
         
         chmod +x backend-deploy/start.sh
@@ -90,7 +90,6 @@ jobs:
     
     # =====================
     # FRONTEND DEPLOYMENT
-    # (These steps will now run)
     # =====================
     
     - name: Setup Node.js
@@ -145,7 +144,7 @@ jobs:
           cd /tmp
           if [ -f "frontend-deploy.tar.gz" ]; then
             echo "Extracting frontend files..."
-            sudo tar -xzf frontend-deploy.tar.gz -C /var/www/truepal/dist/ --strip-components=0
+            sudo tar -xzf frontend-deploy.tar.gz -C /var/www/truepal/dist/
             echo "Frontend files extracted successfully"
           else
             echo "❌ Frontend deployment package not found!"
@@ -185,13 +184,11 @@ jobs:
           echo "🔍 Running health checks..."
           sleep 15
           
-          # FIXED: Make the check for the backend process mandatory.
           echo "Checking for backend process..."
           if pgrep -f "app.jar" > /dev/null; then
             echo "✅ Backend process is running"
           else
             echo "❌ Backend process not found! Deployment failed."
-            # Optional: view the log to debug startup errors
             echo "--- Last 20 lines of backend log ---"
             sudo tail -n 20 /var/log/truepal/backend.log || echo "Log file not found."
             echo "------------------------------------"
