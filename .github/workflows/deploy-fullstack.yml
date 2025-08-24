@@ -31,28 +31,9 @@ jobs:
       env:
         GRADLE_OPTS: '-Xmx2g -Dfile.encoding=UTF-8'
     
+    # NOTE: We no longer need to create a start.sh script
     - name: Create backend deployment package
-      run: |
-        mkdir -p backend-deploy
-        cp build/libs/truepalserver-all.jar backend-deploy/app.jar
-        
-        # FINAL FIX: Start the process in a subshell to guarantee detachment
-        cat > backend-deploy/start.sh << 'EOF'
-        #!/bin/bash
-        
-        # Stop existing application
-        sudo pkill -f "app.jar" || true
-        sleep 2
-        
-        # Start new application inside a subshell to fully daemonize it
-        cd /opt/truepal/backend
-        (nohup java -jar app.jar > /var/log/truepal/backend.log 2>&1 &)
-        
-        echo "✅ Backend start command issued."
-        EOF
-        
-        chmod +x backend-deploy/start.sh
-        tar -czf backend-deploy.tar.gz -C backend-deploy .
+      run: tar -czf backend-deploy.tar.gz build/libs/truepalserver-all.jar
     
     - name: Deploy backend to VPS
       uses: appleboy/scp-action@v0.1.4
@@ -64,7 +45,7 @@ jobs:
         source: "backend-deploy.tar.gz"
         target: "/tmp/"
     
-    - name: Install and start backend
+    - name: Install and restart backend service
       uses: appleboy/ssh-action@v1.0.0
       with:
         host: ${{ secrets.VPS_HOST }}
@@ -72,33 +53,22 @@ jobs:
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT || 22 }}
         script: |
-          # Create backend directories
           sudo mkdir -p /opt/truepal/backend
           sudo mkdir -p /var/log/truepal
           
-          # Backup current backend
-          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-          if [ -f "/opt/truepal/backend/app.jar" ]; then
-            sudo cp /opt/truepal/backend/app.jar /opt/truepal/backend/app.jar.backup.$TIMESTAMP
-            echo "Backend backup created"
-          fi
-          
-          # Extract new backend with sudo
+          # Extract the new JAR, renaming it to app.jar
           cd /tmp
-          sudo tar -xzf backend-deploy.tar.gz -C /opt/truepal/backend/
+          sudo tar -xzf backend-deploy.tar.gz -C /opt/truepal/backend/ --transform 's|.*/|app.jar|'
           
           # Set correct permissions
           sudo chown -R ${{ secrets.VPS_USER }}:${{ secrets.VPS_USER }} /opt/truepal
           sudo chown -R ${{ secrets.VPS_USER }}:${{ secrets.VPS_USER }} /var/log/truepal
-          sudo chmod +x /opt/truepal/backend/start.sh
           
-          # Start backend (the script now handles detachment)
-          /opt/truepal/backend/start.sh
+          # FIXED: Use systemd to restart the service. This command exits immediately.
+          sudo systemctl restart truepal
           
-          # Clean up
           rm -f /tmp/backend-deploy.tar.gz
-          
-          echo "✅ Backend deployment script executed."
+          echo "✅ Backend service restart command issued."
     
     # =====================
     # FRONTEND DEPLOYMENT
@@ -148,49 +118,23 @@ jobs:
         script: |
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
           sudo mkdir -p /var/www/truepal/backups
-          
           if [ -d "/var/www/truepal/dist" ] && [ "$(ls -A /var/www/truepal/dist/)" ]; then
             sudo cp -r /var/www/truepal/dist /var/www/truepal/backups/dist_backup_$TIMESTAMP
             echo "Frontend backup created"
           fi
-          
           sudo mkdir -p /var/www/truepal/dist
-          
           cd /tmp
-          if [ -f "frontend-deploy.tar.gz" ]; then
-            echo "Extracting frontend files..."
-            # FIXED: Use sudo to extract files
-            sudo tar -xzf frontend-deploy.tar.gz -C /var/www/truepal/dist/
-            echo "Frontend files extracted successfully"
-          else
-            echo "❌ Frontend deployment package not found!"
-            exit 1
-          fi
-          
-          # Set correct ownership for web server
+          sudo tar -xzf frontend-deploy.tar.gz -C /var/www/truepal/dist/
           sudo chown -R www-data:www-data /var/www/truepal
           sudo chmod -R 755 /var/www/truepal/dist
-          
-          # Verify files exist and fail if they don't
           if [ ! -f "/var/www/truepal/dist/index.html" ]; then
-            echo "❌ index.html not found after extraction! Deployment failed."
+            echo "❌ index.html not found! Deployment failed."
             exit 1
           fi
-          
-          sudo nginx -t
-          if [ $? -eq 0 ]; then
-            sudo systemctl reload nginx
-            echo "✅ Nginx reloaded successfully"
-          else
-            echo "❌ Nginx configuration error"
-            exit 1
-          fi
-          
+          sudo nginx -t && sudo systemctl reload nginx
           rm -f /tmp/frontend-deploy.tar.gz
-          
           cd /var/www/truepal/backups || true
           ls -t | tail -n +6 | xargs -r sudo rm -rf
-          
           echo "✅ Frontend deployment completed"
     
     # =====================
@@ -208,13 +152,13 @@ jobs:
           echo "🔍 Running health checks..."
           sleep 15
           
-          echo "Checking for backend process..."
-          if pgrep -f "app.jar" > /dev/null; then
-            echo "✅ Backend process is running"
+          echo "Checking for backend process via systemd..."
+          if sudo systemctl is-active --quiet truepal; then
+            echo "✅ TruePal service is active."
           else
-            echo "❌ Backend process not found! Deployment failed."
-            echo "--- Last 20 lines of backend log ---"
-            sudo tail -n 20 /var/log/truepal/backend.log || echo "Log file not found."
+            echo "❌ TruePal service is not running! Deployment failed."
+            echo "--- Last 20 lines of service log ---"
+            sudo journalctl -u truepal -n 20 --no-pager || echo "Could not retrieve logs."
             echo "------------------------------------"
             exit 1
           fi
@@ -223,7 +167,7 @@ jobs:
           if curl --fail http://localhost:8080/health 2>/dev/null; then
             echo "✅ Backend health check passed"
           else
-            echo "⚠️  Backend health check failed. The application might be starting or has an error."
+            echo "⚠️  Backend health check failed."
           fi
           
           echo "Checking for frontend files..."
@@ -245,3 +189,4 @@ jobs:
           echo "🚀 Full stack deployment completed!"
           echo "🌐 Frontend: http://${{ secrets.VPS_HOST }}"
           echo "🔗 Backend API: http://${{ secrets.VPS_HOST }}/api"
+          
