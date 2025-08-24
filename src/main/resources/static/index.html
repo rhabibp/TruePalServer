@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TruePal Inventory Management</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h2><i class="fas fa-boxes"></i> TruePal Inventory</h2>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="#" class="nav-link active" data-section="dashboard"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="#" class="nav-link" data-section="parts"><i class="fas fa-cogs"></i> Parts</a></li>
+                <li><a href="#" class="nav-link" data-section="categories"><i class="fas fa-tags"></i> Categories</a></li>
+                <li><a href="#" class="nav-link" data-section="transactions"><i class="fas fa-exchange-alt"></i> Transactions</a></li>
+                <li><a href="#" class="nav-link" data-section="invoices"><i class="fas fa-file-invoice"></i> Invoices</a></li>
+                <li><a href="#" class="nav-link" data-section="low-stock"><i class="fas fa-exclamation-triangle"></i> Low Stock</a></li>
+                <li><a href="#" class="nav-link" data-section="reports"><i class="fas fa-chart-bar"></i> Reports</a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-header">
+                <div class="header-left">
+                    <button class="mobile-menu-toggle" id="mobile-menu-toggle">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h1 id="page-title">Dashboard</h1>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-primary" id="add-part-btn"><i class="fas fa-plus"></i> Add Part</button>
+                    <button class="btn btn-secondary" id="refresh-btn"><i class="fas fa-sync-alt"></i> Refresh</button>
+                </div>
+            </header>
+
+            <!-- Dashboard Section -->
+            <section id="dashboard-section" class="content-section active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-boxes"></i></div>
+                        <div class="stat-info">
+                            <h3 id="total-parts">0</h3>
+                            <p>Total Parts</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-tags"></i></div>
+                        <div class="stat-info">
+                            <h3 id="total-categories">0</h3>
+                            <p>Categories</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-dollar-sign"></i></div>
+                        <div class="stat-info">
+                            <h3 id="total-value">$0</h3>
+                            <p>Total Value</p>
+                        </div>
+                    </div>
+                    <div class="stat-card warning">
+                        <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                        <div class="stat-info">
+                            <h3 id="low-stock-count">0</h3>
+                            <p>Low Stock Items</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="dashboard-card">
+                        <h3>Fast Moving Parts</h3>
+                        <div id="fast-moving-parts" class="list-container"></div>
+                    </div>
+                    <div class="dashboard-card">
+                        <h3>Recent Transactions</h3>
+                        <div id="recent-transactions" class="list-container"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Parts Section -->
+            <section id="parts-section" class="content-section">
+                <div class="section-header">
+                    <div class="search-filters-enhanced">
+                        <div class="search-row-primary">
+                            <input type="text" id="parts-search" placeholder="Search by name, part number, description, supplier, location, or machine model..." class="search-input-enhanced">
+                            <button class="btn btn-secondary" id="clear-parts-filters"><i class="fas fa-times"></i> Clear</button>
+                        </div>
+                        <div class="search-row-secondary">
+                            <select id="category-filter" class="filter-select">
+                                <option value="">All Categories</option>
+                            </select>
+                            <select id="supplier-filter" class="filter-select">
+                                <option value="">All Suppliers</option>
+                            </select>
+                            <select id="location-filter" class="filter-select">
+                                <option value="">All Locations</option>
+                            </select>
+                            <select id="stock-status-filter" class="filter-select">
+                                <option value="">All Stock Levels</option>
+                                <option value="low">Low Stock</option>
+                                <option value="critical">Critical Stock</option>
+                                <option value="good">Good Stock</option>
+                                <option value="overstocked">Overstocked</option>
+                            </select>
+                            <div class="price-range-filter">
+                                <input type="number" id="price-min" placeholder="Min Price" class="price-input" step="0.01">
+                                <span class="price-separator">-</span>
+                                <input type="number" id="price-max" placeholder="Max Price" class="price-input" step="0.01">
+                            </div>
+                        </div>
+                        <div class="search-row-tertiary">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="has-machine-models-filter"> Has Machine Models
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="has-description-filter"> Has Description
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="recently-updated-filter"> Recently Updated (7 days)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div id="parts-grid" class="parts-grid"></div>
+                <div class="pagination" id="parts-pagination"></div>
+            </section>
+
+            <!-- Categories Section -->
+            <section id="categories-section" class="content-section">
+                <div class="section-header">
+                    <button class="btn btn-primary" id="add-category-btn"><i class="fas fa-plus"></i> Add Category</button>
+                </div>
+                <div id="categories-grid" class="categories-grid"></div>
+            </section>
+
+            <!-- Transactions Section -->
+            <section id="transactions-section" class="content-section">
+                <div class="section-header">
+                    <div class="transaction-filters">
+                        <input type="text" id="transaction-search" placeholder="Search by recipient, part, reason..." class="search-input">
+                        <select id="transaction-type-filter" class="filter-select">
+                            <option value="">All Types</option>
+                            <option value="IN">Stock In</option>
+                            <option value="OUT">Stock Out</option>
+                            <option value="ADJUSTMENT">Adjustment</option>
+                        </select>
+                        <select id="transaction-payment-filter" class="filter-select">
+                            <option value="">All Payments</option>
+                            <option value="paid">Paid</option>
+                            <option value="unpaid">Unpaid</option>
+                            <option value="partial">Partial</option>
+                        </select>
+                        <input type="date" id="transaction-date-from" class="date-input" title="From Date">
+                        <input type="date" id="transaction-date-to" class="date-input" title="To Date">
+                        <button class="btn btn-secondary" id="clear-transaction-filters"><i class="fas fa-times"></i> Clear</button>
+                    </div>
+                    <button class="btn btn-primary" id="add-transaction-btn"><i class="fas fa-plus"></i> New Transaction</button>
+                </div>
+                <div id="transactions-table" class="table-container"></div>
+            </section>
+
+            <!-- Invoices Section -->
+            <section id="invoices-section" class="content-section">
+                <div class="section-header">
+                    <div class="invoice-filters">
+                        <input type="text" id="invoice-search" placeholder="Search by invoice number, recipient, part..." class="search-input">
+                        <select id="invoice-type-filter" class="filter-select">
+                            <option value="">All Types</option>
+                            <option value="CUSTOMER_COPY">Customer Copy</option>
+                            <option value="COMPANY_COPY">Company Copy</option>
+                        </select>
+                        <select id="invoice-payment-filter" class="filter-select">
+                            <option value="">All Payments</option>
+                            <option value="paid">Paid</option>
+                            <option value="unpaid">Unpaid</option>
+                            <option value="partial">Partial</option>
+                        </select>
+                        <input type="date" id="invoice-date-from" class="date-input" title="From Date">
+                        <input type="date" id="invoice-date-to" class="date-input" title="To Date">
+                        <button class="btn btn-secondary" id="clear-invoice-filters"><i class="fas fa-times"></i> Clear</button>
+                    </div>
+                    <button class="btn btn-primary" id="print-invoice-btn"><i class="fas fa-print"></i> Print Invoice</button>
+                </div>
+                <div id="invoices-table" class="table-container"></div>
+            </section>
+
+            <!-- Low Stock Section -->
+            <section id="low-stock-section" class="content-section">
+                <div id="low-stock-grid" class="parts-grid"></div>
+            </section>
+
+            <!-- Reports Section -->
+            <section id="reports-section" class="content-section">
+                <div class="reports-grid">
+                    <div class="report-card">
+                        <h3>Category Statistics</h3>
+                        <div id="category-stats" class="stats-list"></div>
+                    </div>
+                    <div class="report-card">
+                        <h3>Inventory Analysis</h3>
+                        <div id="inventory-analysis" class="analysis-content"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <!-- Add/Edit Part Modal -->
+    <div id="part-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="part-modal-title">Add New Part</h3>
+                <span class="close">&times;</span>
+            </div>
+            <form id="part-form">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="part-name">Part Name *</label>
+                        <input type="text" id="part-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="part-number">Part Number *</label>
+                        <input type="text" id="part-number" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="part-category">Category *</label>
+                        <div class="searchable-select-container">
+                            <div class="searchable-select" id="part-category-container">
+                                <input type="text" id="part-category-search" placeholder="Search or type new category..." autocomplete="off" required>
+                                <button type="button" class="dropdown-toggle" id="part-category-toggle">
+                                    <i class="fas fa-chevron-down"></i>
+                                </button>
+                                <div class="dropdown-menu" id="part-category-dropdown">
+                                    <div class="dropdown-item create-new" id="create-new-category">
+                                        <i class="fas fa-plus"></i> Create new category
+                                    </div>
+                                    <div class="dropdown-divider"></div>
+                                    <div class="dropdown-items" id="category-dropdown-items">
+                                        <!-- Categories will be populated here -->
+                                    </div>
+                                </div>
+                            </div>
+                            <input type="hidden" id="part-category" name="part-category" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="part-price">Unit Price *</label>
+                        <input type="number" id="part-price" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="part-stock">Initial Stock</label>
+                        <input type="number" id="part-stock" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="part-min-stock">Minimum Stock *</label>
+                        <input type="number" id="part-min-stock" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="part-max-stock">Maximum Stock</label>
+                        <input type="number" id="part-max-stock">
+                    </div>
+                    <div class="form-group">
+                        <label for="part-location">Location</label>
+                        <input type="text" id="part-location">
+                    </div>
+                    <div class="form-group">
+                        <label for="part-supplier">Supplier</label>
+                        <input type="text" id="part-supplier">
+                    </div>
+                    <div class="form-group">
+                        <label for="part-machine-models">Machine Models</label>
+                        <input type="text" id="part-machine-models" placeholder="Comma separated">
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="part-description">Description</label>
+                        <textarea id="part-description" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancel-part">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Part</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Category Modal -->
+    <div id="category-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="category-modal-title">Add New Category</h3>
+                <span class="close">&times;</span>
+            </div>
+            <form id="category-form">
+                <div class="form-group">
+                    <label for="category-name">Category Name *</label>
+                    <input type="text" id="category-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="category-description">Description</label>
+                    <textarea id="category-description" rows="3"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancel-category">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Category</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Transaction Modal -->
+<div id="transaction-modal" class="modal">
+    <div class="modal-content large">
+        <div class="modal-header">
+            <h3 id="transaction-modal-title">New Transaction</h3>
+            <span class="close">&times;</span>
+        </div>
+        <form id="transaction-form">
+            <div class="form-grid">
+                <!-- Part Selection -->
+                <div class="form-group full-width">
+                    <label>Parts *</label>
+                    <div class="multi-part-selection">
+                        <div class="searchable-select-container">
+                            <input type="text" id="transaction-part-search" placeholder="Search for parts to add..." class="search-input">
+                            <div id="transaction-part-search-results" class="dropdown-menu"></div>
+                        </div>
+                        <div id="selected-parts-list" class="selected-parts-list">
+                            <!-- Selected parts will be dynamically added here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Other transaction fields -->
+                <div class="form-group">
+                    <label for="transaction-type">Type *</label>
+                    <select id="transaction-type" required>
+                        <option value="OUT">Stock Out</option>
+                        <option value="IN">Stock In</option>
+                        <option value="ADJUSTMENT">Adjustment</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="transaction-recipient">Recipient Name</label>
+                    <input type="text" id="transaction-recipient">
+                </div>
+                <div class="form-group">
+                    <label for="transaction-reason">Reason</label>
+                    <input type="text" id="transaction-reason">
+                </div>
+                <div class="form-group">
+                    <label for="transaction-amount-paid">Amount Paid</label>
+                    <input type="number" id="transaction-amount-paid" step="0.01" value="0">
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="transaction-is-paid"> Fully Paid
+                    </label>
+                </div>
+                <div class="form-group full-width">
+                    <label for="transaction-notes">Notes</label>
+                    <textarea id="transaction-notes" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="cancel-transaction">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Transaction</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+    <!-- Part Details Modal -->
+    <div id="part-details-modal" class="modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3 id="part-details-title">Part Details</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div id="part-details-content">
+                <!-- Part details will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Update Modal - Compact Version -->
+    <div id="payment-update-modal" class="modal">
+        <div class="modal-content compact">
+            <div class="modal-header">
+                <h3><i class="fas fa-dollar-sign"></i> Update Payment</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body compact">
+                <!-- Compact Transaction Info -->
+                <div class="payment-summary-compact">
+                    <div class="summary-row">
+                        <span class="summary-label">Transaction:</span>
+                        <span id="payment-transaction-id" class="summary-value">-</span>
+                    </div>
+                    <div class="summary-row">
+                        <span class="summary-label">Part:</span>
+                        <span id="payment-part-name" class="summary-value">-</span>
+                    </div>
+                    <div class="summary-row highlight">
+                        <span class="summary-label">Total:</span>
+                        <span id="payment-total-amount" class="summary-value amount-highlight">$0.00</span>
+                    </div>
+                    <div class="summary-row">
+                        <span class="summary-label">Paid:</span>
+                        <span id="payment-current-amount" class="summary-value amount-current">$0.00</span>
+                    </div>
+                    <div class="summary-row">
+                        <span class="summary-label">Remaining:</span>
+                        <span id="payment-remaining-amount" class="summary-value amount-remaining">$0.00</span>
+                    </div>
+                </div>
+
+                <!-- Compact Payment Input -->
+                <div class="payment-input-compact">
+                    <label for="payment-amount">Payment Amount</label>
+                    <div class="payment-input-group compact">
+                        <span class="currency-symbol">$</span>
+                        <input type="number" id="payment-amount" step="0.01" min="0" required>
+                        <button type="button" class="btn btn-xs btn-secondary" id="pay-full-amount">Full</button>
+                    </div>
+                </div>
+
+                <!-- Compact Options -->
+                <div class="payment-options-compact">
+                    <label class="checkbox-label compact">
+                        <input type="checkbox" id="mark-as-paid"> Mark as fully paid
+                    </label>
+                </div>
+
+                <!-- Compact Preview -->
+                <div class="payment-preview-compact" id="payment-preview">
+                    <div class="preview-row">
+                        <span>New Total:</span>
+                        <span id="preview-new-total" class="preview-amount">$0.00</span>
+                    </div>
+                    <div class="preview-row">
+                        <span>Status:</span>
+                        <span id="preview-status" class="preview-status">Partial</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-actions compact">
+                <button type="button" class="btn btn-secondary btn-sm" id="cancel-payment-update">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm" id="confirm-payment-update">
+                    <i class="fas fa-check"></i> Update
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loading" class="loading-overlay">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>

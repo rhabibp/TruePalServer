@@ -1,0 +1,1 @@
+ALTER TABLE machines ADD COLUMN serial_number VARCHAR(255);

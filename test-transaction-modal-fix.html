@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Transaction Modal Fix</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        button { margin: 5px; padding: 10px 15px; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>Transaction Modal Fix Test</h1>
+    
+    <div class="test-section">
+        <h3>Test 1: Check if showAddTransactionModal is available globally</h3>
+        <button onclick="testGlobalFunction()">Test Global Function</button>
+        <div id="global-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Test 2: Test Frontend Loading</h3>
+        <button onclick="testFrontendLoading()">Test Frontend</button>
+        <div id="frontend-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Test 3: Check Console for JavaScript Errors</h3>
+        <button onclick="checkConsoleErrors()">Check Console</button>
+        <div id="console-result"></div>
+    </div>
+
+    <script>
+        function testGlobalFunction() {
+            const resultDiv = document.getElementById('global-result');
+            
+            if (typeof window.showAddTransactionModal === 'function') {
+                resultDiv.innerHTML = '<div class="success">✓ showAddTransactionModal is available globally</div>';
+            } else {
+                resultDiv.innerHTML = '<div class="error">✗ showAddTransactionModal is not available globally</div>';
+            }
+        }
+        
+        async function testFrontendLoading() {
+            const resultDiv = document.getElementById('frontend-result');
+            resultDiv.innerHTML = '<div class="info">Testing frontend loading...</div>';
+            
+            try {
+                // Test if we can access the main page
+                const mainPageResponse = await fetch('/');
+                if (mainPageResponse.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">✓ Frontend is accessible</div>
+                        <div class="info">Main page loads successfully</div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">✗ Frontend not accessible: ${mainPageResponse.status}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">✗ Frontend loading error: ${error.message}</div>`;
+            }
+        }
+        
+        function checkConsoleErrors() {
+            const resultDiv = document.getElementById('console-result');
+            
+            // Override console.error to catch errors
+            let errorCount = 0;
+            const originalError = console.error;
+            
+            console.error = function(...args) {
+                errorCount++;
+                originalError.apply(console, args);
+            };
+            
+            // Try to load the main application
+            const script = document.createElement('script');
+            script.type = 'module';
+            script.src = '/app.js';
+            
+            script.onload = function() {
+                setTimeout(() => {
+                    if (errorCount === 0) {
+                        resultDiv.innerHTML = '<div class="success">✓ No JavaScript errors detected during app loading</div>';
+                    } else {
+                        resultDiv.innerHTML = `<div class="warning">⚠ ${errorCount} JavaScript errors detected. Check browser console for details.</div>`;
+                    }
+                    // Restore original console.error
+                    console.error = originalError;
+                }, 2000);
+            };
+            
+            script.onerror = function() {
+                resultDiv.innerHTML = '<div class="error">✗ Failed to load app.js</div>';
+                console.error = originalError;
+            };
+            
+            document.head.appendChild(script);
+        }
+        
+        // Auto-run tests on page load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                testGlobalFunction();
+                setTimeout(() => testFrontendLoading(), 1000);
+                setTimeout(() => checkConsoleErrors(), 2000);
+            }, 500);
+        });
+    </script>
+</body>
+</html>

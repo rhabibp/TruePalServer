@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Search Functionality</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        button { margin: 5px; padding: 10px 15px; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 3px; max-height: 300px; overflow-y: auto; }
+        input { padding: 8px; margin: 5px; width: 200px; }
+    </style>
+</head>
+<body>
+    <h1>Search Functionality Test</h1>
+    
+    <div class="test-section">
+        <h3>Test 1: Get All Parts (Baseline)</h3>
+        <button onclick="testGetAllParts()">Test Get All Parts</button>
+        <div id="all-parts-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Test 2: Search with Empty Query</h3>
+        <button onclick="testSearchEmpty()">Test Search with Empty Query</button>
+        <div id="empty-search-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Test 3: Search with Specific Term</h3>
+        <input type="text" id="search-term" placeholder="Enter search term" value="filter">
+        <button onclick="testSearchWithTerm()">Test Search</button>
+        <div id="term-search-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Test 4: Search API Direct Call</h3>
+        <input type="text" id="direct-search-term" placeholder="Enter search term" value="oil">
+        <button onclick="testDirectSearch()">Test Direct API Call</button>
+        <div id="direct-search-result"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:${window.location.port || '8080'}/api`;
+        
+        async function apiCall(endpoint) {
+            try {
+                console.log(`Making API call to: ${API_BASE_URL}${endpoint}`);
+                const response = await fetch(`${API_BASE_URL}${endpoint}`);
+                console.log(`Response status: ${response.status}`);
+                
+                if (!response.ok) {
+                    return { 
+                        error: `HTTP ${response.status}: ${response.statusText}`,
+                        status: response.status
+                    };
+                }
+                
+                const data = await response.json();
+                return { success: true, data, status: response.status };
+            } catch (error) {
+                console.error('API call failed:', error);
+                return { error: error.message, networkError: true };
+            }
+        }
+        
+        async function testGetAllParts() {
+            const resultDiv = document.getElementById('all-parts-result');
+            resultDiv.innerHTML = '<div class="info">Loading all parts...</div>';
+            
+            const result = await apiCall('/parts');
+            
+            if (result.success && result.data && result.data.data) {
+                const parts = result.data.data;
+                resultDiv.innerHTML = `
+                    <div class="success">✓ Successfully loaded ${parts.length} parts</div>
+                    <pre>${JSON.stringify(parts.slice(0, 2), null, 2)}</pre>
+                    <div class="info">Showing first 2 parts...</div>
+                `;
+                window.allParts = parts; // Store for comparison
+            } else {
+                resultDiv.innerHTML = `<div class="error">✗ Failed to load parts: ${result.error || 'Unknown error'}</div>`;
+            }
+        }
+        
+        async function testSearchEmpty() {
+            const resultDiv = document.getElementById('empty-search-result');
+            resultDiv.innerHTML = '<div class="info">Testing search with empty query...</div>';
+            
+            const result = await apiCall('/parts/search?q=');
+            
+            if (result.success && result.data) {
+                const parts = result.data.data || result.data;
+                resultDiv.innerHTML = `
+                    <div class="success">✓ Search with empty query returned ${Array.isArray(parts) ? parts.length : 'unknown'} parts</div>
+                    <pre>${JSON.stringify(result.data, null, 2)}</pre>
+                `;
+            } else {
+                resultDiv.innerHTML = `<div class="error">✗ Search failed: ${result.error}</div>`;
+            }
+        }
+        
+        async function testSearchWithTerm() {
+            const resultDiv = document.getElementById('term-search-result');
+            const searchTerm = document.getElementById('search-term').value;
+            resultDiv.innerHTML = `<div class="info">Searching for "${searchTerm}"...</div>`;
+            
+            const result = await apiCall(`/parts/search?q=${encodeURIComponent(searchTerm)}`);
+            
+            if (result.success && result.data) {
+                const parts = result.data.data || result.data;
+                resultDiv.innerHTML = `
+                    <div class="success">✓ Search for "${searchTerm}" returned ${Array.isArray(parts) ? parts.length : 'unknown'} parts</div>
+                    <pre>${JSON.stringify(result.data, null, 2)}</pre>
+                `;
+            } else {
+                resultDiv.innerHTML = `<div class="error">✗ Search failed: ${result.error}</div>`;
+            }
+        }
+        
+        async function testDirectSearch() {
+            const resultDiv = document.getElementById('direct-search-result');
+            const searchTerm = document.getElementById('direct-search-term').value;
+            resultDiv.innerHTML = `<div class="info">Direct API search for "${searchTerm}"...</div>`;
+            
+            // Test the exact same call that the frontend makes
+            try {
+                const response = await fetch(`${API_BASE_URL}/parts/search?q=${encodeURIComponent(searchTerm)}`);
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <div class="success">✓ Direct API call successful</div>
+                    <div class="info">Status: ${response.status}</div>
+                    <div class="info">Response type: ${typeof data}</div>
+                    <div class="info">Has data property: ${data.hasOwnProperty('data')}</div>
+                    <div class="info">Data length: ${Array.isArray(data.data) ? data.data.length : 'Not an array'}</div>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">✗ Direct API call failed: ${error.message}</div>`;
+            }
+        }
+        
+        // Auto-run the first test on page load
+        window.addEventListener('load', () => {
+            setTimeout(testGetAllParts, 1000);
+        });
+    </script>
+</body>
+</html>

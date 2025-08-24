@@ -1,0 +1,15 @@
+ktor:
+    application:
+        modules:
+            - com.newmotion.ApplicationKt.module
+    deployment:
+        port: 8080
+        host: 0.0.0.0
+
+database:
+    url: "jdbc:h2:mem:test_db;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE"
+    driver: "org.h2.Driver"
+    user: "sa"
+    password: ""
+    maxPoolSize: 5
+    minIdleConnections: 1

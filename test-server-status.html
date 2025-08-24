@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Server Status Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        button { margin: 5px; padding: 10px 15px; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 3px; max-height: 300px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <h1>Server Status and API Test</h1>
+    
+    <div class="test-section">
+        <h3>Test 1: Server Health Check</h3>
+        <button onclick="testServerHealth()">Test Server Health</button>
+        <div id="health-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Test 2: Categories API</h3>
+        <button onclick="testCategoriesAPI()">Test Categories API</button>
+        <div id="categories-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Test 3: Parts API</h3>
+        <button onclick="testPartsAPI()">Test Parts API</button>
+        <div id="parts-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Test 4: Parts Search API</h3>
+        <button onclick="testPartsSearchAPI()">Test Parts Search API</button>
+        <div id="search-result"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:${window.location.port || '8080'}/api`;
+        
+        async function apiCall(endpoint) {
+            try {
+                console.log(`Making API call to: ${API_BASE_URL}${endpoint}`);
+                const response = await fetch(`${API_BASE_URL}${endpoint}`);
+                console.log(`Response status: ${response.status}`);
+                
+                if (!response.ok) {
+                    return { 
+                        error: `HTTP ${response.status}: ${response.statusText}`,
+                        status: response.status,
+                        statusText: response.statusText
+                    };
+                }
+                
+                const contentType = response.headers.get('Content-Type');
+                if (contentType && contentType.includes('application/json')) {
+                    const data = await response.json();
+                    return { success: true, data, status: response.status };
+                } else {
+                    const text = await response.text();
+                    return { success: true, data: text, status: response.status, contentType };
+                }
+            } catch (error) {
+                console.error('API call failed:', error);
+                return { error: error.message, networkError: true };
+            }
+        }
+        
+        async function testServerHealth() {
+            const resultDiv = document.getElementById('health-result');
+            resultDiv.innerHTML = '<div class="info">Testing server health...</div>';
+            
+            // Test basic server response
+            const result = await apiCall('');
+            
+            if (result.networkError) {
+                resultDiv.innerHTML = `<div class="error">✗ Server not accessible: ${result.error}</div>`;
+            } else if (result.status === 404) {
+                resultDiv.innerHTML = `<div class="success">✓ Server is running (404 expected for /api)</div>`;
+            } else if (result.success) {
+                resultDiv.innerHTML = `<div class="success">✓ Server is running and responding</div>`;
+            } else {
+                resultDiv.innerHTML = `<div class="error">✗ Server error: ${result.error}</div>`;
+            }
+        }
+        
+        async function testCategoriesAPI() {
+            const resultDiv = document.getElementById('categories-result');
+            resultDiv.innerHTML = '<div class="info">Testing categories API...</div>';
+            
+            const result = await apiCall('/categories');
+            
+            if (result.networkError) {
+                resultDiv.innerHTML = `<div class="error">✗ Network error: ${result.error}</div>`;
+            } else if (result.success && result.data) {
+                const categories = result.data.data || result.data;
+                resultDiv.innerHTML = `
+                    <div class="success">✓ Categories API working</div>
+                    <div class="info">Found ${Array.isArray(categories) ? categories.length : 'unknown'} categories</div>
+                    <pre>${JSON.stringify(result.data, null, 2)}</pre>
+                `;
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="error">✗ Categories API error: ${result.error}</div>
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                `;
+            }
+        }
+        
+        async function testPartsAPI() {
+            const resultDiv = document.getElementById('parts-result');
+            resultDiv.innerHTML = '<div class="info">Testing parts API...</div>';
+            
+            const result = await apiCall('/parts');
+            
+            if (result.networkError) {
+                resultDiv.innerHTML = `<div class="error">✗ Network error: ${result.error}</div>`;
+            } else if (result.success && result.data) {
+                const parts = result.data.data || result.data;
+                resultDiv.innerHTML = `
+                    <div class="success">✓ Parts API working</div>
+                    <div class="info">Found ${Array.isArray(parts) ? parts.length : 'unknown'} parts</div>
+                    <pre>${JSON.stringify(result.data, null, 2)}</pre>
+                `;
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="error">✗ Parts API error: ${result.error}</div>
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                `;
+            }
+        }
+        
+        async function testPartsSearchAPI() {
+            const resultDiv = document.getElementById('search-result');
+            resultDiv.innerHTML = '<div class="info">Testing parts search API...</div>';
+            
+            const result = await apiCall('/parts/search?q=');
+            
+            if (result.networkError) {
+                resultDiv.innerHTML = `<div class="error">✗ Network error: ${result.error}</div>`;
+            } else if (result.success && result.data) {
+                const parts = result.data.data || result.data;
+                resultDiv.innerHTML = `
+                    <div class="success">✓ Parts search API working</div>
+                    <div class="info">Found ${Array.isArray(parts) ? parts.length : 'unknown'} parts</div>
+                    <pre>${JSON.stringify(result.data, null, 2)}</pre>
+                `;
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="error">✗ Parts search API error: ${result.error}</div>
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                `;
+            }
+        }
+        
+        // Auto-run tests on page load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                testServerHealth();
+                setTimeout(() => testCategoriesAPI(), 1000);
+                setTimeout(() => testPartsAPI(), 2000);
+                setTimeout(() => testPartsSearchAPI(), 3000);
+            }, 500);
+        });
+    </script>
+</body>
+</html>

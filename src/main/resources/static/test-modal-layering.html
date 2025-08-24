@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modal Layering Test</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        .test-button {
+            margin: 10px;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .test-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-info">
+        <h2>Modal Layering Test</h2>
+        <p>This test verifies that transaction and stock adjustment modals appear above the part details modal.</p>
+        <p><strong>Z-index hierarchy:</strong></p>
+        <ul>
+            <li>Sidebar: 1000</li>
+            <li>General modals (part details): 2000</li>
+            <li>Transaction modal: 2100</li>
+            <li>Stock adjustment modal: 2100</li>
+            <li>Loading overlay: 3000</li>
+            <li>Toast notifications: 4000</li>
+        </ul>
+    </div>
+
+    <button class="test-button" onclick="showPartDetailsModal()">Show Part Details Modal</button>
+    <button class="test-button" onclick="showTransactionModal()">Show Transaction Modal</button>
+    <button class="test-button" onclick="showStockAdjustmentModal()">Show Stock Adjustment Modal</button>
+    <button class="test-button" onclick="showAllModals()">Show All Modals (Test Layering)</button>
+
+    <!-- Part Details Modal -->
+    <div id="part-details-modal" class="part-details-modal modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Part Details Modal (z-index: 2000)</h3>
+                <span class="close" onclick="closeModal('part-details-modal')">&times;</span>
+            </div>
+            <div class="part-details-content-compact">
+                <p>This is the part details modal. It should appear behind transaction and stock adjustment modals.</p>
+                <div class="quick-actions-bar" style="margin-top: 20px;">
+                    <button class="btn btn-primary btn-sm" onclick="showTransactionModal()">
+                        <i class="fas fa-plus-circle"></i> Stock In (Test)
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="showTransactionModal()">
+                        <i class="fas fa-minus-circle"></i> Stock Out (Test)
+                    </button>
+                    <button class="btn btn-info btn-sm" onclick="showStockAdjustmentModal()">
+                        <i class="fas fa-adjust"></i> Set Stock (Test)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transaction Modal -->
+    <div id="transaction-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Transaction Modal (z-index: 2100)</h3>
+                <span class="close" onclick="closeModal('transaction-modal')">&times;</span>
+            </div>
+            <div style="padding: 20px;">
+                <p>This is the transaction modal. It should appear ABOVE the part details modal.</p>
+                <p style="color: #28a745; font-weight: bold;">✓ If you can see this modal clearly above the part details modal, the fix is working!</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stock Adjustment Modal -->
+    <div class="stock-adjustment-modal modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Stock Adjustment Modal (z-index: 2100)</h3>
+                <span class="close" onclick="closeModal('stock-adjustment-modal')">&times;</span>
+            </div>
+            <div style="padding: 20px;">
+                <p>This is the stock adjustment modal. It should appear ABOVE the part details modal.</p>
+                <p style="color: #28a745; font-weight: bold;">✓ If you can see this modal clearly above the part details modal, the fix is working!</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showPartDetailsModal() {
+            document.getElementById('part-details-modal').classList.add('show');
+        }
+
+        function showTransactionModal() {
+            document.getElementById('transaction-modal').classList.add('show');
+        }
+
+        function showStockAdjustmentModal() {
+            document.querySelector('.stock-adjustment-modal').classList.add('show');
+        }
+
+        function showAllModals() {
+            showPartDetailsModal();
+            setTimeout(() => showTransactionModal(), 500);
+            setTimeout(() => showStockAdjustmentModal(), 1000);
+        }
+
+        function closeModal(modalId) {
+            if (modalId === 'stock-adjustment-modal') {
+                document.querySelector('.stock-adjustment-modal').classList.remove('show');
+            } else {
+                document.getElementById(modalId).classList.remove('show');
+            }
+        }
+
+        // Close modals when clicking outside
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal')) {
+                e.target.classList.remove('show');
+            }
+        });
+    </script>
+</body>
+</html>

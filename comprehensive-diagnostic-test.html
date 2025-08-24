@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Comprehensive Application Diagnostic Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section { 
+            margin: 20px 0; 
+            padding: 15px; 
+            border: 1px solid #ddd; 
+            border-radius: 5px; 
+            background: #fafafa;
+        }
+        .success { color: #28a745; font-weight: bold; }
+        .error { color: #dc3545; font-weight: bold; }
+        .warning { color: #ffc107; font-weight: bold; }
+        .info { color: #17a2b8; font-weight: bold; }
+        button { 
+            margin: 5px; 
+            padding: 10px 15px; 
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        pre { 
+            background: #f8f9fa; 
+            padding: 10px; 
+            border-radius: 3px; 
+            max-height: 300px; 
+            overflow-y: auto;
+            border: 1px solid #e9ecef;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-ok { background-color: #28a745; }
+        .status-error { background-color: #dc3545; }
+        .status-warning { background-color: #ffc107; }
+        .status-unknown { background-color: #6c757d; }
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .summary {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 TruePal Application Diagnostic Test</h1>
+        
+        <div class="summary" id="summary">
+            <h3>Test Summary</h3>
+            <p>Click "Run All Tests" to diagnose the application issues.</p>
+        </div>
+
+        <div style="text-align: center; margin: 20px 0;">
+            <button onclick="runAllTests()" id="runAllBtn">🚀 Run All Tests</button>
+            <button onclick="clearResults()">🧹 Clear Results</button>
+        </div>
+
+        <div class="test-grid">
+            <div class="test-section">
+                <h3><span class="status-indicator status-unknown" id="server-status"></span>1. Server Health Check</h3>
+                <button onclick="testServerHealth()">Test Server</button>
+                <div id="server-result">Not tested yet</div>
+            </div>
+            
+            <div class="test-section">
+                <h3><span class="status-indicator status-unknown" id="categories-status"></span>2. Categories API</h3>
+                <button onclick="testCategoriesAPI()">Test Categories</button>
+                <div id="categories-result">Not tested yet</div>
+            </div>
+            
+            <div class="test-section">
+                <h3><span class="status-indicator status-unknown" id="parts-status"></span>3. Parts API</h3>
+                <button onclick="testPartsAPI()">Test Parts</button>
+                <div id="parts-result">Not tested yet</div>
+            </div>
+            
+            <div class="test-section">
+                <h3><span class="status-indicator status-unknown" id="stats-status"></span>4. Stats API</h3>
+                <button onclick="testStatsAPI()">Test Stats</button>
+                <div id="stats-result">Not tested yet</div>
+            </div>
+
+            <div class="test-section">
+                <h3><span class="status-indicator status-unknown" id="transactions-status"></span>5. Transactions API</h3>
+                <button onclick="testTransactionsAPI()">Test Transactions</button>
+                <div id="transactions-result">Not tested yet</div>
+            </div>
+
+            <div class="test-section">
+                <h3><span class="status-indicator status-unknown" id="frontend-status"></span>6. Frontend Loading</h3>
+                <button onclick="testFrontendLoading()">Test Frontend</button>
+                <div id="frontend-result">Not tested yet</div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Detailed Results</h3>
+            <div id="detailed-results"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:${window.location.port || '8080'}/api`;
+        let testResults = {};
+        
+        async function apiCall(endpoint) {
+            try {
+                console.log(`Making API call to: ${API_BASE_URL}${endpoint}`);
+                const response = await fetch(`${API_BASE_URL}${endpoint}`);
+                console.log(`Response status: ${response.status}`);
+                
+                if (!response.ok) {
+                    return { 
+                        error: `HTTP ${response.status}: ${response.statusText}`,
+                        status: response.status,
+                        statusText: response.statusText
+                    };
+                }
+                
+                const contentType = response.headers.get('Content-Type');
+                if (contentType && contentType.includes('application/json')) {
+                    const data = await response.json();
+                    return { success: true, data, status: response.status };
+                } else {
+                    const text = await response.text();
+                    return { success: true, data: text, status: response.status, contentType };
+                }
+            } catch (error) {
+                console.error('API call failed:', error);
+                return { error: error.message, networkError: true };
+            }
+        }
+
+        function updateStatus(testName, status) {
+            const indicator = document.getElementById(`${testName}-status`);
+            if (indicator) {
+                indicator.className = `status-indicator status-${status}`;
+            }
+        }
+
+        function updateSummary() {
+            const summary = document.getElementById('summary');
+            const total = Object.keys(testResults).length;
+            const passed = Object.values(testResults).filter(r => r.status === 'ok').length;
+            const failed = Object.values(testResults).filter(r => r.status === 'error').length;
+            const warnings = Object.values(testResults).filter(r => r.status === 'warning').length;
+
+            summary.innerHTML = `
+                <h3>Test Summary</h3>
+                <p><strong>Total Tests:</strong> ${total}</p>
+                <p><span class="success">✓ Passed:</span> ${passed}</p>
+                <p><span class="error">✗ Failed:</span> ${failed}</p>
+                <p><span class="warning">⚠ Warnings:</span> ${warnings}</p>
+                ${failed > 0 ? '<p class="error">❌ Critical issues detected that prevent the application from working!</p>' : ''}
+                ${passed === total && total > 0 ? '<p class="success">✅ All tests passed! The application should be working.</p>' : ''}
+            `;
+        }
+        
+        async function testServerHealth() {
+            const resultDiv = document.getElementById('server-result');
+            resultDiv.innerHTML = '<div class="info">🔄 Testing server health...</div>';
+            
+            const result = await apiCall('');
+            
+            if (result.networkError) {
+                resultDiv.innerHTML = `<div class="error">✗ Server not accessible: ${result.error}</div>`;
+                testResults.server = { status: 'error', message: 'Server not accessible' };
+                updateStatus('server', 'error');
+            } else if (result.status === 404) {
+                resultDiv.innerHTML = `<div class="success">✓ Server is running (404 expected for /api)</div>`;
+                testResults.server = { status: 'ok', message: 'Server running' };
+                updateStatus('server', 'ok');
+            } else if (result.success) {
+                resultDiv.innerHTML = `<div class="success">✓ Server is running and responding</div>`;
+                testResults.server = { status: 'ok', message: 'Server running' };
+                updateStatus('server', 'ok');
+            } else {
+                resultDiv.innerHTML = `<div class="error">✗ Server error: ${result.error}</div>`;
+                testResults.server = { status: 'error', message: result.error };
+                updateStatus('server', 'error');
+            }
+            updateSummary();
+        }
+        
+        async function testCategoriesAPI() {
+            const resultDiv = document.getElementById('categories-result');
+            resultDiv.innerHTML = '<div class="info">🔄 Testing categories API...</div>';
+            
+            const result = await apiCall('/categories');
+            
+            if (result.networkError) {
+                resultDiv.innerHTML = `<div class="error">✗ Network error: ${result.error}</div>`;
+                testResults.categories = { status: 'error', message: 'Network error' };
+                updateStatus('categories', 'error');
+            } else if (result.success && result.data) {
+                const categories = result.data.data || result.data;
+                if (Array.isArray(categories) && categories.length > 0) {
+                    resultDiv.innerHTML = `
+                        <div class="success">✓ Categories API working</div>
+                        <div class="info">Found ${categories.length} categories</div>
+                        <pre>${JSON.stringify(categories.slice(0, 2), null, 2)}</pre>
+                    `;
+                    testResults.categories = { status: 'ok', message: `${categories.length} categories found` };
+                    updateStatus('categories', 'ok');
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="warning">⚠ Categories API working but no data found</div>
+                        <pre>${JSON.stringify(result.data, null, 2)}</pre>
+                    `;
+                    testResults.categories = { status: 'warning', message: 'No categories data' };
+                    updateStatus('categories', 'warning');
+                }
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="error">✗ Categories API error: ${result.error}</div>
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                `;
+                testResults.categories = { status: 'error', message: result.error };
+                updateStatus('categories', 'error');
+            }
+            updateSummary();
+        }
+        
+        async function testPartsAPI() {
+            const resultDiv = document.getElementById('parts-result');
+            resultDiv.innerHTML = '<div class="info">🔄 Testing parts API...</div>';
+            
+            const result = await apiCall('/parts');
+            
+            if (result.networkError) {
+                resultDiv.innerHTML = `<div class="error">✗ Network error: ${result.error}</div>`;
+                testResults.parts = { status: 'error', message: 'Network error' };
+                updateStatus('parts', 'error');
+            } else if (result.success && result.data) {
+                const parts = result.data.data || result.data;
+                if (Array.isArray(parts) && parts.length > 0) {
+                    resultDiv.innerHTML = `
+                        <div class="success">✓ Parts API working</div>
+                        <div class="info">Found ${parts.length} parts</div>
+                        <pre>${JSON.stringify(parts.slice(0, 2), null, 2)}</pre>
+                    `;
+                    testResults.parts = { status: 'ok', message: `${parts.length} parts found` };
+                    updateStatus('parts', 'ok');
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="warning">⚠ Parts API working but no data found</div>
+                        <div class="info">This explains why "0 parts showing" in the frontend!</div>
+                        <pre>${JSON.stringify(result.data, null, 2)}</pre>
+                    `;
+                    testResults.parts = { status: 'warning', message: 'No parts data - this is the main issue!' };
+                    updateStatus('parts', 'warning');
+                }
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="error">✗ Parts API error: ${result.error}</div>
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                `;
+                testResults.parts = { status: 'error', message: result.error };
+                updateStatus('parts', 'error');
+            }
+            updateSummary();
+        }
+
+        async function testStatsAPI() {
+            const resultDiv = document.getElementById('stats-result');
+            resultDiv.innerHTML = '<div class="info">🔄 Testing stats API...</div>';
+            
+            const result = await apiCall('/stats/inventory');
+            
+            if (result.networkError) {
+                resultDiv.innerHTML = `<div class="error">✗ Network error: ${result.error}</div>`;
+                testResults.stats = { status: 'error', message: 'Network error' };
+                updateStatus('stats', 'error');
+            } else if (result.success && result.data) {
+                const stats = result.data.data || result.data;
+                resultDiv.innerHTML = `
+                    <div class="success">✓ Stats API working</div>
+                    <div class="info">Stats: ${stats.totalParts || 0} parts, ${stats.totalCategories || 0} categories</div>
+                    <pre>${JSON.stringify(stats, null, 2)}</pre>
+                `;
+                testResults.stats = { status: 'ok', message: 'Stats API working' };
+                updateStatus('stats', 'ok');
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="error">✗ Stats API error: ${result.error}</div>
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                `;
+                testResults.stats = { status: 'error', message: result.error };
+                updateStatus('stats', 'error');
+            }
+            updateSummary();
+        }
+
+        async function testTransactionsAPI() {
+            const resultDiv = document.getElementById('transactions-result');
+            resultDiv.innerHTML = '<div class="info">🔄 Testing transactions API...</div>';
+            
+            const result = await apiCall('/transactions');
+            
+            if (result.networkError) {
+                resultDiv.innerHTML = `<div class="error">✗ Network error: ${result.error}</div>`;
+                testResults.transactions = { status: 'error', message: 'Network error' };
+                updateStatus('transactions', 'error');
+            } else if (result.success && result.data) {
+                const transactions = result.data.data || result.data;
+                if (Array.isArray(transactions)) {
+                    resultDiv.innerHTML = `
+                        <div class="success">✓ Transactions API working</div>
+                        <div class="info">Found ${transactions.length} transactions</div>
+                        <pre>${JSON.stringify(transactions.slice(0, 2), null, 2)}</pre>
+                    `;
+                    testResults.transactions = { status: 'ok', message: `${transactions.length} transactions found` };
+                    updateStatus('transactions', 'ok');
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="warning">⚠ Transactions API working but unexpected data format</div>
+                        <pre>${JSON.stringify(result.data, null, 2)}</pre>
+                    `;
+                    testResults.transactions = { status: 'warning', message: 'Unexpected data format' };
+                    updateStatus('transactions', 'warning');
+                }
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="error">✗ Transactions API error: ${result.error}</div>
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                `;
+                testResults.transactions = { status: 'error', message: result.error };
+                updateStatus('transactions', 'error');
+            }
+            updateSummary();
+        }
+
+        async function testFrontendLoading() {
+            const resultDiv = document.getElementById('frontend-result');
+            resultDiv.innerHTML = '<div class="info">🔄 Testing frontend loading...</div>';
+            
+            try {
+                // Test if we can access the main page
+                const mainPageResponse = await fetch('/');
+                if (mainPageResponse.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">✓ Frontend is accessible</div>
+                        <div class="info">Main page loads successfully</div>
+                        <div class="info">API Base URL: ${API_BASE_URL}</div>
+                    `;
+                    testResults.frontend = { status: 'ok', message: 'Frontend accessible' };
+                    updateStatus('frontend', 'ok');
+                } else {
+                    resultDiv.innerHTML = `<div class="error">✗ Frontend not accessible: ${mainPageResponse.status}</div>`;
+                    testResults.frontend = { status: 'error', message: 'Frontend not accessible' };
+                    updateStatus('frontend', 'error');
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">✗ Frontend loading error: ${error.message}</div>`;
+                testResults.frontend = { status: 'error', message: error.message };
+                updateStatus('frontend', 'error');
+            }
+            updateSummary();
+        }
+
+        async function runAllTests() {
+            const btn = document.getElementById('runAllBtn');
+            btn.disabled = true;
+            btn.textContent = '🔄 Running Tests...';
+            
+            testResults = {};
+            
+            await testServerHealth();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testCategoriesAPI();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testPartsAPI();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testStatsAPI();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testTransactionsAPI();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testFrontendLoading();
+            
+            // Generate detailed results
+            generateDetailedResults();
+            
+            btn.disabled = false;
+            btn.textContent = '🚀 Run All Tests';
+        }
+
+        function generateDetailedResults() {
+            const detailedDiv = document.getElementById('detailed-results');
+            
+            let diagnosis = '<h4>🔍 Diagnosis & Recommendations:</h4>';
+            
+            if (testResults.server?.status === 'error') {
+                diagnosis += '<p class="error">❌ <strong>Critical:</strong> Server is not running or not accessible. Start the server first.</p>';
+            } else if (testResults.parts?.status === 'warning' && testResults.parts?.message.includes('No parts data')) {
+                diagnosis += '<p class="warning">⚠️ <strong>Main Issue Found:</strong> The server is running but there\'s no parts data in the database. This explains why "0 parts showing" and navigation might not work properly.</p>';
+                diagnosis += '<p class="info">💡 <strong>Solution:</strong> The database needs to be populated with sample data. Check if the migration V5__Add_sample_data.sql ran successfully.</p>';
+            } else if (testResults.stats?.status === 'error') {
+                diagnosis += '<p class="error">❌ <strong>Issue:</strong> Stats API is failing, which prevents the dashboard from loading and causes navigation issues.</p>';
+            }
+            
+            if (Object.values(testResults).every(r => r.status === 'ok')) {
+                diagnosis += '<p class="success">✅ <strong>All systems operational!</strong> The application should be working correctly.</p>';
+            }
+            
+            diagnosis += '<h4>📋 Test Results Summary:</h4>';
+            diagnosis += '<ul>';
+            for (const [test, result] of Object.entries(testResults)) {
+                const icon = result.status === 'ok' ? '✅' : result.status === 'warning' ? '⚠️' : '❌';
+                diagnosis += `<li>${icon} <strong>${test}:</strong> ${result.message}</li>`;
+            }
+            diagnosis += '</ul>';
+            
+            detailedDiv.innerHTML = diagnosis;
+        }
+
+        function clearResults() {
+            testResults = {};
+            const resultDivs = ['server-result', 'categories-result', 'parts-result', 'stats-result', 'transactions-result', 'frontend-result', 'detailed-results'];
+            resultDivs.forEach(id => {
+                const div = document.getElementById(id);
+                if (div) div.innerHTML = 'Not tested yet';
+            });
+            
+            const statusIndicators = ['server-status', 'categories-status', 'parts-status', 'stats-status', 'transactions-status', 'frontend-status'];
+            statusIndicators.forEach(id => {
+                const indicator = document.getElementById(id);
+                if (indicator) indicator.className = 'status-indicator status-unknown';
+            });
+            
+            document.getElementById('summary').innerHTML = '<h3>Test Summary</h3><p>Click "Run All Tests" to diagnose the application issues.</p>';
+        }
+        
+        // Auto-run tests on page load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                console.log('Auto-running diagnostic tests...');
+                runAllTests();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

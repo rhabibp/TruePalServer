@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parts Details Stock Out Test</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        .test-button {
+            margin: 10px;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .test-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+        .test-result {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .test-result.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .test-result.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-info">
+        <h2>Parts Details Stock Out Test</h2>
+        <p>This test verifies that the recipient name field appears correctly when clicking "Stock Out" from the parts details modal.</p>
+        <p><strong>Test scenario:</strong></p>
+        <ol>
+            <li>Open a part details modal</li>
+            <li>Click "Stock Out" button</li>
+            <li>Verify that the transaction modal opens with transaction type set to "OUT"</li>
+            <li>Verify that the recipient field is visible and required</li>
+        </ol>
+    </div>
+
+    <button class="test-button" onclick="showPartDetailsModal()">Show Part Details Modal</button>
+    <button class="test-button" onclick="runAutomatedTest()">Run Automated Test</button>
+
+    <div id="test-results"></div>
+
+    <!-- Part Details Modal -->
+    <div class="part-details-modal modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-cog"></i> Test Part <span class="badge badge-good">GOOD</span></h3>
+                <span class="close" onclick="closePartDetailsModal()">&times;</span>
+            </div>
+            <div class="part-details-content-compact">
+                <!-- Quick Actions Bar -->
+                <div class="quick-actions-bar">
+                    <button class="btn btn-primary btn-sm" onclick="createTransactionForPart(1, 'IN')" title="Add stock">
+                        <i class="fas fa-plus-circle"></i> Stock In
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="createTransactionForPart(1, 'OUT')" title="Remove stock">
+                        <i class="fas fa-minus-circle"></i> Stock Out
+                    </button>
+                    <button class="btn btn-info btn-sm" onclick="showStockAdjustmentModal(1)" title="Set exact stock level">
+                        <i class="fas fa-adjust"></i> Set Stock
+                    </button>
+                    <button class="btn btn-success btn-sm" onclick="editPartFromDetails(1)" title="Edit part details">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                </div>
+
+                <!-- Compact Part Overview -->
+                <div class="part-overview-compact">
+                    <div class="overview-row">
+                        <div class="overview-col">
+                            <strong>Part #:</strong> TP001
+                        </div>
+                        <div class="overview-col">
+                            <strong>Category:</strong> Test Category
+                        </div>
+                        <div class="overview-col">
+                            <strong>Price:</strong> $10.00
+                        </div>
+                    </div>
+                    <div class="overview-row">
+                        <div class="overview-col">
+                            <strong>Current Stock:</strong> <span class="stock-number good">25</span>
+                        </div>
+                        <div class="overview-col">
+                            <strong>Min/Max:</strong> 5/50
+                        </div>
+                        <div class="overview-col">
+                            <strong>Total Value:</strong> $250.00
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transaction Modal -->
+    <div id="transaction-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="transaction-modal-title">New Transaction</h3>
+                <span class="close" onclick="closeTransactionModal()">&times;</span>
+            </div>
+            <form id="transaction-form">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="transaction-part">Part *</label>
+                        <select id="transaction-part" required>
+                            <option value="1">Test Part (TP001) - Stock: 25</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="transaction-type">Type *</label>
+                        <select id="transaction-type" required>
+                            <option value="IN">Stock In</option>
+                            <option value="OUT">Stock Out</option>
+                            <option value="ADJUSTMENT">Adjustment</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="transaction-quantity">Quantity *</label>
+                        <input type="number" id="transaction-quantity" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="transaction-price">Unit Price</label>
+                        <input type="number" id="transaction-price" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label for="transaction-recipient">Recipient Name</label>
+                        <input type="text" id="transaction-recipient">
+                    </div>
+                    <div class="form-group">
+                        <label for="transaction-reason">Reason</label>
+                        <input type="text" id="transaction-reason">
+                    </div>
+                    <div class="form-group">
+                        <label for="transaction-amount-paid">Amount Paid</label>
+                        <input type="number" id="transaction-amount-paid" step="0.01" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="transaction-is-paid"> Fully Paid
+                        </label>
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="transaction-notes">Notes</label>
+                        <textarea id="transaction-notes" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeTransactionModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Transaction</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Mock part data
+        const mockPart = {
+            id: 1,
+            name: 'Test Part',
+            partNumber: 'TP001',
+            unitPrice: 10.00,
+            currentStock: 25
+        };
+
+        // Initialize form enhancements (copied from modals.js)
+        function initFormEnhancements() {
+            // Show/hide recipient field based on transaction type
+            const transactionType = document.getElementById('transaction-type');
+            const recipientInput = document.getElementById('transaction-recipient');
+            
+            if (transactionType && recipientInput) {
+                // Find the parent form group by traversing up from the input
+                const recipientGroup = recipientInput.closest('.form-group');
+                
+                const toggleRecipientField = () => {
+                    const isOutTransaction = transactionType.value === 'OUT';
+                    if (recipientGroup) {
+                        recipientGroup.style.display = isOutTransaction ? 'flex' : 'none';
+                    }
+                    recipientInput.required = isOutTransaction;
+                };
+                
+                transactionType.addEventListener('change', toggleRecipientField);
+                toggleRecipientField(); // Initial call
+            }
+        }
+
+        // Mock createTransactionForPart function (simulating the fixed version)
+        async function createTransactionForPart(partId, transactionType = 'OUT') {
+            try {
+                // Show the transaction modal
+                document.getElementById('transaction-modal').classList.add('show');
+                
+                // Initialize form enhancements
+                initFormEnhancements();
+                
+                // Pre-select the part and transaction type
+                const partSelect = document.getElementById('transaction-part');
+                const typeSelect = document.getElementById('transaction-type');
+                const priceInput = document.getElementById('transaction-price');
+
+                if (partSelect) {
+                    partSelect.value = partId;
+                }
+                if (typeSelect) {
+                    typeSelect.value = transactionType;
+                    // Trigger change event to show/hide recipient field properly
+                    typeSelect.dispatchEvent(new Event('change'));
+                }
+                if (priceInput && !priceInput.value) {
+                    priceInput.value = mockPart.unitPrice.toFixed(2);
+                }
+
+                // Focus on quantity input
+                setTimeout(() => {
+                    const quantityInput = document.getElementById('transaction-quantity');
+                    if (quantityInput) {
+                        quantityInput.focus();
+                    }
+                }, 100);
+
+                console.log(`Creating ${transactionType.toLowerCase()} transaction for ${mockPart.name}`);
+
+            } catch (error) {
+                console.error('Error creating transaction for part:', error);
+            }
+        }
+
+        function showPartDetailsModal() {
+            document.querySelector('.part-details-modal').classList.add('show');
+        }
+
+        function closePartDetailsModal() {
+            document.querySelector('.part-details-modal').classList.remove('show');
+        }
+
+        function closeTransactionModal() {
+            document.getElementById('transaction-modal').classList.remove('show');
+        }
+
+        function runAutomatedTest() {
+            const resultsDiv = document.getElementById('test-results');
+            const results = [];
+            
+            // Step 1: Show part details modal
+            showPartDetailsModal();
+            
+            // Step 2: Simulate clicking Stock Out button
+            createTransactionForPart(1, 'OUT');
+            
+            // Step 3: Check if transaction modal is open with correct type
+            const transactionModal = document.getElementById('transaction-modal');
+            const transactionType = document.getElementById('transaction-type');
+            const recipientInput = document.getElementById('transaction-recipient');
+            const recipientGroup = recipientInput.closest('.form-group');
+            
+            const isModalOpen = transactionModal.classList.contains('show');
+            const isTypeSetToOut = transactionType.value === 'OUT';
+            const isRecipientVisible = recipientGroup.style.display === 'flex';
+            const isRecipientRequired = recipientInput.required;
+            
+            results.push({
+                test: 'Transaction modal opens',
+                passed: isModalOpen,
+                details: `Modal has 'show' class: ${isModalOpen}`
+            });
+            
+            results.push({
+                test: 'Transaction type set to OUT',
+                passed: isTypeSetToOut,
+                details: `Transaction type value: ${transactionType.value}`
+            });
+            
+            results.push({
+                test: 'Recipient field is visible',
+                passed: isRecipientVisible,
+                details: `Recipient group display: ${recipientGroup.style.display}`
+            });
+            
+            results.push({
+                test: 'Recipient field is required',
+                passed: isRecipientRequired,
+                details: `Recipient input required: ${recipientInput.required}`
+            });
+            
+            // Display results
+            const allPassed = results.every(r => r.passed);
+            const resultClass = allPassed ? 'success' : 'error';
+            const resultTitle = allPassed ? '✓ All Tests Passed!' : '✗ Some Tests Failed';
+            
+            resultsDiv.innerHTML = `
+                <div class="test-result ${resultClass}">
+                    <h3>${resultTitle}</h3>
+                    ${results.map(r => `
+                        <div>
+                            <strong>${r.passed ? '✓' : '✗'} ${r.test}</strong><br>
+                            <small>${r.details}</small>
+                        </div>
+                    `).join('<br>')}
+                </div>
+            `;
+            
+            // Clean up
+            setTimeout(() => {
+                closeTransactionModal();
+                closePartDetailsModal();
+            }, 3000);
+        }
+
+        // Close modals when clicking outside
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal')) {
+                if (e.target.id === 'transaction-modal') {
+                    closeTransactionModal();
+                } else if (e.target.classList.contains('part-details-modal')) {
+                    closePartDetailsModal();
+                }
+            }
+        });
+
+        // Make functions available globally
+        window.createTransactionForPart = createTransactionForPart;
+        window.showStockAdjustmentModal = () => console.log('Stock adjustment modal would open');
+        window.editPartFromDetails = () => console.log('Edit part modal would open');
+    </script>
+</body>
+</html>

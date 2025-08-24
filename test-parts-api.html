@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Parts API</title>
+</head>
+<body>
+    <h1>Parts API Test</h1>
+    <button onclick="testGetAllParts()">Test Get All Parts</button>
+    <button onclick="testSearchParts()">Test Search Parts</button>
+    <div id="results"></div>
+
+    <script>
+        const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:${window.location.port || '8080'}/api`;
+        
+        async function apiCall(endpoint) {
+            try {
+                const response = await fetch(`${API_BASE_URL}${endpoint}`);
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('API call failed:', error);
+                return { error: error.message };
+            }
+        }
+        
+        async function testGetAllParts() {
+            console.log('Testing GET /api/parts');
+            const result = await apiCall('/parts');
+            document.getElementById('results').innerHTML = `
+                <h3>GET /api/parts Result:</h3>
+                <pre>${JSON.stringify(result, null, 2)}</pre>
+            `;
+            console.log('GET /api/parts result:', result);
+        }
+        
+        async function testSearchParts() {
+            console.log('Testing GET /api/parts/search');
+            const result = await apiCall('/parts/search?q=');
+            document.getElementById('results').innerHTML = `
+                <h3>GET /api/parts/search Result:</h3>
+                <pre>${JSON.stringify(result, null, 2)}</pre>
+            `;
+            console.log('GET /api/parts/search result:', result);
+        }
+    </script>
+</body>
+</html>

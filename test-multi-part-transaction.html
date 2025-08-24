@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Multi-Part Transaction System</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        button { margin: 5px; padding: 10px 15px; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>Multi-Part Transaction System Test</h1>
+    
+    <div class="test-section">
+        <h3>Test 1: Get All Parts</h3>
+        <button onclick="testGetAllParts()">Test Get All Parts</button>
+        <div id="parts-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Test 2: Create Multi-Part Transaction</h3>
+        <button onclick="testCreateMultiPartTransaction()">Test Create Multi-Part Transaction</button>
+        <div id="transaction-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Test 3: Get All Transactions</h3>
+        <button onclick="testGetAllTransactions()">Test Get All Transactions</button>
+        <div id="transactions-result"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:${window.location.port || '8080'}/api`;
+        
+        async function apiCall(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+                
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || `HTTP error! status: ${response.status}`);
+                }
+                return data;
+            } catch (error) {
+                console.error('API call failed:', error);
+                throw error;
+            }
+        }
+        
+        async function testGetAllParts() {
+            const resultDiv = document.getElementById('parts-result');
+            try {
+                resultDiv.innerHTML = '<div class="info">Loading parts...</div>';
+                const result = await apiCall('/parts');
+                
+                if (result.success && result.data && result.data.length > 0) {
+                    resultDiv.innerHTML = `
+                        <div class="success">✓ Successfully loaded ${result.data.length} parts</div>
+                        <pre>${JSON.stringify(result.data.slice(0, 2), null, 2)}</pre>
+                        <div class="info">Showing first 2 parts...</div>
+                    `;
+                    window.testParts = result.data; // Store for later use
+                } else {
+                    resultDiv.innerHTML = '<div class="error">✗ No parts found or invalid response</div>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">✗ Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function testCreateMultiPartTransaction() {
+            const resultDiv = document.getElementById('transaction-result');
+            
+            if (!window.testParts || window.testParts.length < 2) {
+                resultDiv.innerHTML = '<div class="error">✗ Please run "Get All Parts" test first and ensure at least 2 parts exist</div>';
+                return;
+            }
+            
+            try {
+                resultDiv.innerHTML = '<div class="info">Creating multi-part transaction...</div>';
+                
+                // Create a transaction with multiple parts
+                const transactionData = {
+                    parts: [
+                        {
+                            partId: window.testParts[0].id,
+                            quantity: 2,
+                            unitPrice: window.testParts[0].unitPrice
+                        },
+                        {
+                            partId: window.testParts[1].id,
+                            quantity: 1,
+                            unitPrice: window.testParts[1].unitPrice
+                        }
+                    ],
+                    type: "OUT",
+                    recipientName: "Test Customer",
+                    reason: "Multi-part transaction test",
+                    isPaid: false,
+                    amountPaid: 0,
+                    notes: "This is a test transaction with multiple parts"
+                };
+                
+                const result = await apiCall('/transactions', {
+                    method: 'POST',
+                    body: JSON.stringify(transactionData)
+                });
+                
+                if (result.success && result.data) {
+                    resultDiv.innerHTML = `
+                        <div class="success">✓ Successfully created multi-part transaction!</div>
+                        <div class="info">Created ${result.data.length} individual transactions (one per part)</div>
+                        <pre>${JSON.stringify(result.data, null, 2)}</pre>
+                    `;
+                    window.testTransactions = result.data; // Store for later use
+                } else {
+                    resultDiv.innerHTML = '<div class="error">✗ Failed to create transaction or invalid response</div>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">✗ Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function testGetAllTransactions() {
+            const resultDiv = document.getElementById('transactions-result');
+            try {
+                resultDiv.innerHTML = '<div class="info">Loading transactions...</div>';
+                const result = await apiCall('/transactions');
+                
+                if (result.success && result.data) {
+                    resultDiv.innerHTML = `
+                        <div class="success">✓ Successfully loaded ${result.data.length} transactions</div>
+                        <pre>${JSON.stringify(result.data.slice(-3), null, 2)}</pre>
+                        <div class="info">Showing last 3 transactions...</div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = '<div class="error">✗ Failed to load transactions or invalid response</div>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">✗ Error: ${error.message}</div>`;
+            }
+        }
+        
+        // Auto-run the first test on page load
+        window.addEventListener('load', () => {
+            setTimeout(testGetAllParts, 1000);
+        });
+    </script>
+</body>
+</html>

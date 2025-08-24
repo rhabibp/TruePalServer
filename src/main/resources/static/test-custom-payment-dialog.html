@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Payment Dialog Test</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        .test-button {
+            margin: 10px;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .test-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+        .test-result {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .test-result.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .test-result.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .comparison-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .comparison-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        .comparison-card h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        .old-dialog {
+            border-left: 4px solid #dc3545;
+        }
+        .new-dialog {
+            border-left: 4px solid #28a745;
+        }
+        .sample-transaction {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        @media (max-width: 768px) {
+            .comparison-section {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="test-info">
+        <h2>Custom Payment Dialog Test</h2>
+        <p>This test demonstrates the new custom payment update dialog that replaces the browser's default prompt dialog.</p>
+        <p><strong>Improvements:</strong></p>
+        <ul>
+            <li><strong>Better UX:</strong> Professional-looking modal with clear transaction summary</li>
+            <li><strong>Real-time Preview:</strong> Shows payment calculations as you type</li>
+            <li><strong>Mobile Friendly:</strong> Responsive design that works on all devices</li>
+            <li><strong>Validation:</strong> Built-in validation and error handling</li>
+            <li><strong>Accessibility:</strong> Better keyboard navigation and screen reader support</li>
+        </ul>
+    </div>
+
+    <div class="comparison-section">
+        <div class="comparison-card old-dialog">
+            <h3>❌ Old Browser Dialog</h3>
+            <ul>
+                <li>Basic text-only prompt</li>
+                <li>No visual feedback</li>
+                <li>Poor mobile experience</li>
+                <li>Limited validation</li>
+                <li>Inconsistent styling</li>
+            </ul>
+            <button class="test-button" onclick="showOldStyleDialog()">Show Old Style (Simulated)</button>
+        </div>
+        <div class="comparison-card new-dialog">
+            <h3>✅ New Custom Dialog</h3>
+            <ul>
+                <li>Rich visual interface</li>
+                <li>Real-time calculations</li>
+                <li>Mobile responsive</li>
+                <li>Advanced validation</li>
+                <li>Consistent branding</li>
+            </ul>
+            <button class="test-button" onclick="showNewCustomDialog()">Show New Custom Dialog</button>
+        </div>
+    </div>
+
+    <div class="sample-transaction">
+        <h3>Sample Transaction for Testing</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+            <div><strong>ID:</strong> 12345</div>
+            <div><strong>Part:</strong> Hydraulic Pump</div>
+            <div><strong>Total Amount:</strong> $150.00</div>
+            <div><strong>Current Paid:</strong> $50.00</div>
+            <div><strong>Remaining:</strong> $100.00</div>
+        </div>
+    </div>
+
+    <button class="test-button" onclick="runInteractiveTest()">Run Interactive Test</button>
+    <button class="test-button" onclick="testMobileResponsiveness()">Test Mobile View</button>
+    <button class="test-button" onclick="testValidation()">Test Validation</button>
+
+    <div id="test-results"></div>
+
+    <!-- Payment Update Modal (copied from main app) -->
+    <div id="payment-update-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-dollar-sign"></i> Update Payment</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="payment-info-section">
+                    <div class="transaction-summary">
+                        <h4>Transaction Summary</h4>
+                        <div class="summary-grid">
+                            <div class="summary-item">
+                                <label>Transaction ID:</label>
+                                <span id="payment-transaction-id">-</span>
+                            </div>
+                            <div class="summary-item">
+                                <label>Part:</label>
+                                <span id="payment-part-name">-</span>
+                            </div>
+                            <div class="summary-item">
+                                <label>Total Amount:</label>
+                                <span id="payment-total-amount" class="amount-highlight">$0.00</span>
+                            </div>
+                            <div class="summary-item">
+                                <label>Current Paid:</label>
+                                <span id="payment-current-amount" class="amount-current">$0.00</span>
+                            </div>
+                            <div class="summary-item">
+                                <label>Remaining:</label>
+                                <span id="payment-remaining-amount" class="amount-remaining">$0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <form id="payment-update-form">
+                    <div class="form-group">
+                        <label for="payment-amount">Payment Amount *</label>
+                        <div class="payment-input-group">
+                            <span class="currency-symbol">$</span>
+                            <input type="number" id="payment-amount" step="0.01" min="0" required>
+                            <button type="button" class="btn btn-sm btn-secondary" id="pay-full-amount">Pay Full</button>
+                        </div>
+                        <small class="form-help">Enter the amount being paid for this transaction</small>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="payment-options">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="mark-as-paid"> Mark transaction as fully paid
+                            </label>
+                            <small class="form-help">Check this if the transaction should be marked as completely paid regardless of the amount</small>
+                        </div>
+                    </div>
+
+                    <div class="payment-preview" id="payment-preview">
+                        <div class="preview-header">
+                            <i class="fas fa-calculator"></i>
+                            <span>Payment Preview</span>
+                        </div>
+                        <div class="preview-content">
+                            <div class="preview-row">
+                                <span>New Total Paid:</span>
+                                <span id="preview-new-total" class="preview-amount">$0.00</span>
+                            </div>
+                            <div class="preview-row">
+                                <span>Remaining Balance:</span>
+                                <span id="preview-remaining" class="preview-amount">$0.00</span>
+                            </div>
+                            <div class="preview-row">
+                                <span>Status:</span>
+                                <span id="preview-status" class="preview-status">Partial Payment</span>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="cancel-payment-update">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirm-payment-update">
+                    <i class="fas fa-check"></i> Update Payment
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Mock transaction data for testing
+        const sampleTransaction = {
+            id: 12345,
+            partName: 'Hydraulic Pump',
+            totalAmount: 150.00,
+            amountPaid: 50.00,
+            type: 'OUT',
+            quantity: 1,
+            unitPrice: 150.00,
+            recipientName: 'John Doe',
+            transactionDate: new Date().toISOString()
+        };
+
+        // Mock utility functions
+        const formatCurrency = (amount) => `$${amount.toFixed(2)}`;
+        const showToast = (title, message, type = 'success') => {
+            console.log(`Toast: ${title} - ${message} (${type})`);
+            showTestResult(`Toast: ${title}`, true, message);
+        };
+
+        // Custom payment modal functions (simplified versions)
+        function showPaymentUpdateModal(transaction) {
+            const modal = document.getElementById('payment-update-modal');
+            if (!modal) return;
+
+            const currentAmount = transaction.amountPaid || 0;
+            const totalAmount = transaction.totalAmount || 0;
+            const remainingAmount = Math.max(0, totalAmount - currentAmount);
+
+            // Populate transaction summary
+            document.getElementById('payment-transaction-id').textContent = transaction.id;
+            document.getElementById('payment-part-name').textContent = transaction.partName || 'Unknown Part';
+            document.getElementById('payment-total-amount').textContent = formatCurrency(totalAmount);
+            document.getElementById('payment-current-amount').textContent = formatCurrency(currentAmount);
+            document.getElementById('payment-remaining-amount').textContent = formatCurrency(remainingAmount);
+
+            // Set initial payment amount to remaining amount
+            const paymentAmountInput = document.getElementById('payment-amount');
+            paymentAmountInput.value = remainingAmount.toFixed(2);
+
+            // Reset checkbox
+            document.getElementById('mark-as-paid').checked = false;
+
+            // Update preview
+            updatePaymentPreview();
+
+            // Show modal
+            modal.classList.add('show');
+
+            // Set up event listeners
+            setupPaymentModalEventListeners(transaction);
+        }
+
+        function setupPaymentModalEventListeners(transaction) {
+            const modal = document.getElementById('payment-update-modal');
+            const paymentAmountInput = document.getElementById('payment-amount');
+            const markAsPaidCheckbox = document.getElementById('mark-as-paid');
+            const payFullButton = document.getElementById('pay-full-amount');
+            const confirmButton = document.getElementById('confirm-payment-update');
+            const cancelButton = document.getElementById('cancel-payment-update');
+            const closeButton = modal.querySelector('.close');
+
+            // Update payment preview when amount changes
+            paymentAmountInput.addEventListener('input', updatePaymentPreview);
+            markAsPaidCheckbox.addEventListener('change', updatePaymentPreview);
+
+            // Pay full amount button
+            payFullButton.onclick = () => {
+                const totalAmount = transaction.totalAmount || 0;
+                const currentAmount = transaction.amountPaid || 0;
+                const remainingAmount = Math.max(0, totalAmount - currentAmount);
+                paymentAmountInput.value = remainingAmount.toFixed(2);
+                updatePaymentPreview();
+            };
+
+            // Confirm payment update
+            confirmButton.onclick = async () => {
+                const paymentAmount = parseFloat(paymentAmountInput.value) || 0;
+                const markAsPaid = markAsPaidCheckbox.checked;
+                
+                if (paymentAmount < 0) {
+                    showToast('Error', 'Payment amount cannot be negative', 'error');
+                    return;
+                }
+
+                showToast('Success', `Payment of ${formatCurrency(paymentAmount)} processed successfully!`);
+                modal.classList.remove('show');
+            };
+
+            // Cancel and close handlers
+            const closeModal = () => {
+                modal.classList.remove('show');
+            };
+
+            cancelButton.onclick = closeModal;
+            closeButton.onclick = closeModal;
+
+            // Close on outside click
+            modal.onclick = (e) => {
+                if (e.target === modal) {
+                    closeModal();
+                }
+            };
+        }
+
+        function updatePaymentPreview() {
+            const paymentAmount = parseFloat(document.getElementById('payment-amount').value) || 0;
+            const markAsPaid = document.getElementById('mark-as-paid').checked;
+            
+            // Get current transaction data from the modal
+            const currentAmountText = document.getElementById('payment-current-amount').textContent;
+            const totalAmountText = document.getElementById('payment-total-amount').textContent;
+            
+            const currentAmount = parseFloat(currentAmountText.replace('$', '').replace(',', '')) || 0;
+            const totalAmount = parseFloat(totalAmountText.replace('$', '').replace(',', '')) || 0;
+            
+            const newTotalPaid = currentAmount + paymentAmount;
+            const remainingBalance = Math.max(0, totalAmount - newTotalPaid);
+            
+            // Update preview amounts
+            document.getElementById('preview-new-total').textContent = formatCurrency(newTotalPaid);
+            document.getElementById('preview-remaining').textContent = formatCurrency(remainingBalance);
+            
+            // Update status
+            const statusElement = document.getElementById('preview-status');
+            let status = 'Partial Payment';
+            let statusClass = 'partial';
+            
+            if (markAsPaid || newTotalPaid >= totalAmount) {
+                status = 'Fully Paid';
+                statusClass = 'paid';
+            } else if (newTotalPaid <= 0) {
+                status = 'Unpaid';
+                statusClass = 'unpaid';
+            }
+            
+            statusElement.textContent = status;
+            statusElement.className = `preview-status ${statusClass}`;
+        }
+
+        // Test functions
+        window.showOldStyleDialog = function() {
+            const currentAmount = sampleTransaction.amountPaid || 0;
+            const totalAmount = sampleTransaction.totalAmount || 0;
+            
+            const amountPaid = prompt(
+                `Update payment amount:\nCurrent: ${formatCurrency(currentAmount)}\nTotal: ${formatCurrency(totalAmount)}`,
+                currentAmount
+            );
+            
+            if (amountPaid !== null) {
+                const amount = parseFloat(amountPaid);
+                if (!isNaN(amount) && amount >= 0) {
+                    const isPaid = amount >= totalAmount || confirm('Mark as fully paid?');
+                    showTestResult('Old Dialog Result', true, `Amount: ${formatCurrency(amount)}, Fully Paid: ${isPaid}`);
+                } else {
+                    showTestResult('Old Dialog Result', false, 'Invalid amount entered');
+                }
+            } else {
+                showTestResult('Old Dialog Result', true, 'User cancelled');
+            }
+        };
+
+        window.showNewCustomDialog = function() {
+            showPaymentUpdateModal(sampleTransaction);
+        };
+
+        window.runInteractiveTest = function() {
+            showTestResult('Interactive Test', true, 'Custom payment dialog opened. Try different amounts and options to see the real-time preview!');
+            showPaymentUpdateModal(sampleTransaction);
+        };
+
+        window.testMobileResponsiveness = function() {
+            // Simulate mobile viewport
+            const viewport = document.querySelector('meta[name=viewport]');
+            showTestResult('Mobile Test', true, 'Open browser dev tools and switch to mobile view to test responsiveness');
+            showPaymentUpdateModal(sampleTransaction);
+        };
+
+        window.testValidation = function() {
+            showPaymentUpdateModal(sampleTransaction);
+            
+            // Auto-test validation after a delay
+            setTimeout(() => {
+                const paymentInput = document.getElementById('payment-amount');
+                paymentInput.value = '-10';
+                paymentInput.dispatchEvent(new Event('input'));
+                
+                showTestResult('Validation Test', true, 'Try entering negative values or invalid amounts to test validation');
+            }, 1000);
+        };
+
+        function showTestResult(testName, success, message) {
+            const resultsDiv = document.getElementById('test-results');
+            const resultClass = success ? 'success' : 'error';
+            const resultIcon = success ? '✓' : '✗';
+            
+            const resultHTML = `
+                <div class="test-result ${resultClass}">
+                    <h3>${resultIcon} ${testName}</h3>
+                    <p>${message}</p>
+                </div>
+            `;
+            
+            resultsDiv.innerHTML += resultHTML;
+        }
+
+        // Initialize
+        console.log('Custom Payment Dialog Test loaded successfully');
+        showTestResult('System Check', true, 'Custom payment dialog system loaded and ready for testing');
+    </script>
+</body>
+</html>
