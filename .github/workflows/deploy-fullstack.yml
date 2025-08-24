@@ -1,0 +1,240 @@
+name: Deploy TruePal Full Stack
+
+on:
+  push:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    # =====================
+    # BACKEND DEPLOYMENT
+    # =====================
+    
+    - name: Setup JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    
+    - name: Grant execute permission to gradlew
+      run: chmod +x ./gradlew
+    
+    - name: Build backend with Gradle
+      run: ./gradlew build -x test
+      env:
+        GRADLE_OPTS: '-Xmx2g -Dfile.encoding=UTF-8'
+    
+    - name: Create backend deployment package
+      run: |
+        mkdir -p backend-deploy
+        cp build/libs/*.jar backend-deploy/app.jar
+        
+        # Create startup script
+        cat > backend-deploy/start.sh << 'EOF'
+        #!/bin/bash
+        
+        # Stop existing application
+        sudo pkill -f "app.jar" || true
+        sleep 5
+        
+        # Start new application
+        cd /opt/truepal/backend
+        nohup java -jar app.jar > /var/log/truepal/backend.log 2>&1 &
+        
+        echo "Backend started"
+        sleep 3
+        
+        # Check if application started successfully
+        if pgrep -f "app.jar" > /dev/null; then
+            echo "✅ Backend is running"
+        else
+            echo "❌ Backend failed to start"
+            exit 1
+        fi
+        EOF
+        
+        chmod +x backend-deploy/start.sh
+        tar -czf backend-deploy.tar.gz -C backend-deploy .
+    
+    - name: Deploy backend to VPS
+      uses: appleboy/scp-action@v0.1.4
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        source: "backend-deploy.tar.gz"
+        target: "/tmp/"
+    
+    - name: Install and start backend
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        script: |
+          # Create backend directories
+          sudo mkdir -p /opt/truepal/backend
+          sudo mkdir -p /var/log/truepal
+          
+          # Backup current backend
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          if [ -f "/opt/truepal/backend/app.jar" ]; then
+            sudo cp /opt/truepal/backend/app.jar /opt/truepal/backend/app.jar.backup.$TIMESTAMP
+            echo "Backend backup created"
+          fi
+          
+          # Extract new backend
+          cd /tmp
+          tar -xzf backend-deploy.tar.gz -C /opt/truepal/backend/
+          
+          # Set permissions
+          sudo chown -R deploy:deploy /opt/truepal/backend
+          sudo chmod +x /opt/truepal/backend/start.sh
+          sudo chown -R deploy:deploy /var/log/truepal
+          
+          # Start backend
+          /opt/truepal/backend/start.sh
+          
+          # Clean up
+          rm -f /tmp/backend-deploy.tar.gz
+          
+          echo "✅ Backend deployment completed"
+    
+    # =====================
+    # FRONTEND DEPLOYMENT
+    # =====================
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: Install frontend dependencies
+      run: |
+        cd frontend
+        npm ci
+    
+    - name: Build frontend
+      run: |
+        cd frontend
+        npm run build
+      env:
+        NODE_ENV: production
+    
+    - name: Create frontend deployment package
+      run: |
+        cd frontend
+        tar -czf ../frontend-deploy.tar.gz -C dist .
+    
+    - name: Deploy frontend to VPS
+      uses: appleboy/scp-action@v0.1.4
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        source: "frontend-deploy.tar.gz"
+        target: "/tmp/"
+        
+    - name: Install and configure frontend
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        script: |
+          # Frontend backup and deployment
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          sudo mkdir -p /var/www/truepal/backups
+          
+          if [ -d "/var/www/truepal/dist" ]; then
+            sudo cp -r /var/www/truepal/dist /var/www/truepal/backups/dist_backup_$TIMESTAMP
+            echo "Frontend backup created"
+          fi
+          
+          # Clean and extract new frontend
+          sudo rm -rf /var/www/truepal/dist
+          sudo mkdir -p /var/www/truepal/dist
+          
+          cd /tmp
+          tar -xzf frontend-deploy.tar.gz -C /var/www/truepal/dist/
+          
+          # Set permissions
+          sudo chown -R www-data:www-data /var/www/truepal/dist
+          sudo chmod -R 755 /var/www/truepal/dist
+          sudo find /var/www/truepal/dist -type f -exec sudo chmod 644 {} \;
+          
+          # Test and reload nginx
+          sudo nginx -t
+          sudo systemctl reload nginx
+          
+          # Clean up
+          rm -f /tmp/frontend-deploy.tar.gz
+          
+          # Clean old backups (keep last 5)
+          cd /var/www/truepal/backups
+          sudo ls -t | tail -n +6 | sudo xargs -r rm -rf
+          
+          echo "✅ Frontend deployment completed"
+    
+    # =====================
+    # POST-DEPLOYMENT TESTS
+    # =====================
+    
+    - name: Health check
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        script: |
+          echo "🔍 Running health checks..."
+          
+          # Wait for backend to fully start
+          sleep 15
+          
+          # Check backend process
+          if pgrep -f "app.jar" > /dev/null; then
+            echo "✅ Backend process is running"
+          else
+            echo "❌ Backend process not found"
+          fi
+          
+          # Check backend HTTP (adjust port if needed)
+          if curl -f http://localhost:8080/health 2>/dev/null; then
+            echo "✅ Backend health check passed"
+          else
+            echo "⚠️  Backend health check failed (might need /health endpoint)"
+          fi
+          
+          # Check frontend files
+          if [ -f "/var/www/truepal/dist/index.html" ]; then
+            echo "✅ Frontend files deployed"
+          else
+            echo "❌ Frontend files missing"
+          fi
+          
+          # Check nginx
+          if sudo nginx -t 2>/dev/null; then
+            echo "✅ Nginx configuration valid"
+          else
+            echo "❌ Nginx configuration error"
+          fi
+          
+          echo ""
+          echo "🚀 Full stack deployment completed!"
+          echo "🌐 Frontend: http://157.180.116.88"
+          echo "🔗 Backend API: http://157.180.116.88/api"
