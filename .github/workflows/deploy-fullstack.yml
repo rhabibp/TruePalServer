@@ -1,4 +1,4 @@
-name: Deploy TruePal Full Stack
+name: Deploy TruePal Full Stack New
 
 on:
   push:
