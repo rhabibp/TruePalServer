@@ -35,21 +35,22 @@ jobs:
       run: |
         mkdir -p backend-deploy
         cp build/libs/truepalserver-all.jar backend-deploy/app.jar
+        
+        # FIXED: Simplified startup script to launch the process and exit immediately.
         cat > backend-deploy/start.sh << 'EOF'
         #!/bin/bash
+        
+        # Stop existing application
         sudo pkill -f "app.jar" || true
-        sleep 5
+        sleep 2
+        
+        # Start new application in the background
         cd /opt/truepal/backend
         nohup java -jar app.jar > /var/log/truepal/backend.log 2>&1 &
-        echo "Backend started"
-        sleep 3
-        if pgrep -f "app.jar" > /dev/null; then
-            echo "✅ Backend is running"
-        else
-            echo "❌ Backend failed to start"
-            exit 1
-        fi
+        
+        echo "✅ Backend start command issued."
         EOF
+        
         chmod +x backend-deploy/start.sh
         tar -czf backend-deploy.tar.gz -C backend-deploy .
     
@@ -89,6 +90,7 @@ jobs:
     
     # =====================
     # FRONTEND DEPLOYMENT
+    # (These steps will now run)
     # =====================
     
     - name: Setup Node.js
@@ -143,7 +145,7 @@ jobs:
           cd /tmp
           if [ -f "frontend-deploy.tar.gz" ]; then
             echo "Extracting frontend files..."
-            sudo tar -xzf frontend-deploy.tar.gz -C /var/www/truepal/dist/
+            sudo tar -xzf frontend-deploy.tar.gz -C /var/www/truepal/dist/ --strip-components=0
             echo "Frontend files extracted successfully"
           else
             echo "❌ Frontend deployment package not found!"
@@ -182,28 +184,42 @@ jobs:
         script: |
           echo "🔍 Running health checks..."
           sleep 15
+          
+          # FIXED: Make the check for the backend process mandatory.
+          echo "Checking for backend process..."
           if pgrep -f "app.jar" > /dev/null; then
             echo "✅ Backend process is running"
           else
-            echo "❌ Backend process not found"
+            echo "❌ Backend process not found! Deployment failed."
+            # Optional: view the log to debug startup errors
+            echo "--- Last 20 lines of backend log ---"
+            sudo tail -n 20 /var/log/truepal/backend.log || echo "Log file not found."
+            echo "------------------------------------"
             exit 1
           fi
+
+          echo "Checking backend health endpoint..."
           if curl --fail http://localhost:8080/health 2>/dev/null; then
             echo "✅ Backend health check passed"
           else
-            echo "⚠️  Backend health check failed"
+            echo "⚠️  Backend health check failed. The application might be starting or has an error."
           fi
+          
+          echo "Checking for frontend files..."
           if [ -f "/var/www/truepal/dist/index.html" ]; then
             echo "✅ Frontend index.html is deployed"
           else
             echo "❌ Frontend index.html is missing"
             exit 1
           fi
+          
+          echo "Checking Nginx service..."
           if sudo systemctl is-active --quiet nginx; then
             echo "✅ Nginx service is active"
           else
             echo "❌ Nginx service is not running"
           fi
+          
           echo ""
           echo "🚀 Full stack deployment completed!"
           echo "🌐 Frontend: http://${{ secrets.VPS_HOST }}"
