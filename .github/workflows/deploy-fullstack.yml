@@ -36,7 +36,7 @@ jobs:
         mkdir -p backend-deploy
         cp build/libs/truepalserver-all.jar backend-deploy/app.jar
         
-        # FINAL FIX: Use 'disown' to fully detach the process from the SSH session.
+        # FINAL FIX: Start the process in a subshell to guarantee detachment
         cat > backend-deploy/start.sh << 'EOF'
         #!/bin/bash
         
@@ -44,11 +44,11 @@ jobs:
         sudo pkill -f "app.jar" || true
         sleep 2
         
-        # Start new application, redirect stdin, and disown it from the shell
+        # Start new application inside a subshell to fully daemonize it
         cd /opt/truepal/backend
-        nohup java -jar app.jar < /dev/null > /var/log/truepal/backend.log 2>&1 & disown
+        (nohup java -jar app.jar > /var/log/truepal/backend.log 2>&1 &)
         
-        echo "✅ Backend start command issued and disowned."
+        echo "✅ Backend start command issued."
         EOF
         
         chmod +x backend-deploy/start.sh
@@ -72,21 +72,33 @@ jobs:
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT || 22 }}
         script: |
+          # Create backend directories
           sudo mkdir -p /opt/truepal/backend
           sudo mkdir -p /var/log/truepal
+          
+          # Backup current backend
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
           if [ -f "/opt/truepal/backend/app.jar" ]; then
             sudo cp /opt/truepal/backend/app.jar /opt/truepal/backend/app.jar.backup.$TIMESTAMP
             echo "Backend backup created"
           fi
+          
+          # Extract new backend with sudo
           cd /tmp
           sudo tar -xzf backend-deploy.tar.gz -C /opt/truepal/backend/
+          
+          # Set correct permissions
           sudo chown -R ${{ secrets.VPS_USER }}:${{ secrets.VPS_USER }} /opt/truepal
           sudo chown -R ${{ secrets.VPS_USER }}:${{ secrets.VPS_USER }} /var/log/truepal
           sudo chmod +x /opt/truepal/backend/start.sh
+          
+          # Start backend (the script now handles detachment)
           /opt/truepal/backend/start.sh
+          
+          # Clean up
           rm -f /tmp/backend-deploy.tar.gz
-          echo "✅ Backend deployment completed"
+          
+          echo "✅ Backend deployment script executed."
     
     # =====================
     # FRONTEND DEPLOYMENT
@@ -136,26 +148,35 @@ jobs:
         script: |
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
           sudo mkdir -p /var/www/truepal/backups
+          
           if [ -d "/var/www/truepal/dist" ] && [ "$(ls -A /var/www/truepal/dist/)" ]; then
             sudo cp -r /var/www/truepal/dist /var/www/truepal/backups/dist_backup_$TIMESTAMP
             echo "Frontend backup created"
           fi
+          
           sudo mkdir -p /var/www/truepal/dist
+          
           cd /tmp
           if [ -f "frontend-deploy.tar.gz" ]; then
             echo "Extracting frontend files..."
+            # FIXED: Use sudo to extract files
             sudo tar -xzf frontend-deploy.tar.gz -C /var/www/truepal/dist/
             echo "Frontend files extracted successfully"
           else
             echo "❌ Frontend deployment package not found!"
             exit 1
           fi
+          
+          # Set correct ownership for web server
           sudo chown -R www-data:www-data /var/www/truepal
           sudo chmod -R 755 /var/www/truepal/dist
+          
+          # Verify files exist and fail if they don't
           if [ ! -f "/var/www/truepal/dist/index.html" ]; then
             echo "❌ index.html not found after extraction! Deployment failed."
             exit 1
           fi
+          
           sudo nginx -t
           if [ $? -eq 0 ]; then
             sudo systemctl reload nginx
@@ -164,9 +185,12 @@ jobs:
             echo "❌ Nginx configuration error"
             exit 1
           fi
+          
           rm -f /tmp/frontend-deploy.tar.gz
+          
           cd /var/www/truepal/backups || true
           ls -t | tail -n +6 | xargs -r sudo rm -rf
+          
           echo "✅ Frontend deployment completed"
     
     # =====================
