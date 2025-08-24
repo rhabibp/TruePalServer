@@ -95,12 +95,12 @@ jobs:
           
           # Extract new backend
           cd /tmp
-          tar -xzf backend-deploy.tar.gz -C /opt/truepal/backend/
+          sudo tar -xzf backend-deploy.tar.gz -C /opt/truepal/backend/
           
-          # Set permissions
-          sudo chown -R deploy:deploy /opt/truepal/backend
+          # Set permissions for the 'deploy' user (or your SSH user)
+          sudo chown -R ${{ secrets.VPS_USER }}:${{ secrets.VPS_USER }} /opt/truepal/backend
           sudo chmod +x /opt/truepal/backend/start.sh
-          sudo chown -R deploy:deploy /var/log/truepal
+          sudo chown -R ${{ secrets.VPS_USER }}:${{ secrets.VPS_USER }} /var/log/truepal
           
           # Start backend
           /opt/truepal/backend/start.sh
@@ -156,50 +156,39 @@ jobs:
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT || 22 }}
         script: |
-          # Frontend backup and deployment
+          # Create backup and web directories
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
           sudo mkdir -p /var/www/truepal/backups
           
+          # Create a backup if the directory is not empty
           if [ -d "/var/www/truepal/dist" ] && [ "$(ls -A /var/www/truepal/dist/)" ]; then
             sudo cp -r /var/www/truepal/dist /var/www/truepal/backups/dist_backup_$TIMESTAMP
             echo "Frontend backup created"
           fi
           
-          # Ensure frontend directory exists with proper permissions
+          # Ensure frontend directory exists
           sudo mkdir -p /var/www/truepal/dist
-          sudo chown -R www-data:www-data /var/www/truepal
           
           # Extract new frontend files
           cd /tmp
           if [ -f "frontend-deploy.tar.gz" ]; then
             echo "Extracting frontend files..."
-            tar -xzf frontend-deploy.tar.gz -C /var/www/truepal/dist/
+            # FIXED: Use sudo to extract files into the www-data owned directory
+            sudo tar -xzf frontend-deploy.tar.gz -C /var/www/truepal/dist/
             echo "Frontend files extracted successfully"
-            
-            # List extracted files for debugging
-            echo "Files in frontend dist:"
-            ls -la /var/www/truepal/dist/
           else
             echo "❌ Frontend deployment package not found!"
             exit 1
           fi
           
-          # Set proper permissions
-          sudo chown -R www-data:www-data /var/www/truepal/dist
+          # Set proper ownership and permissions for the web server
+          sudo chown -R www-data:www-data /var/www/truepal
           sudo chmod -R 755 /var/www/truepal/dist
-          sudo find /var/www/truepal/dist -type f -exec sudo chmod 644 {} \; 2>/dev/null || true
           
           # Verify frontend files exist
           if [ ! -f "/var/www/truepal/dist/index.html" ]; then
-            echo "❌ index.html not found after extraction!"
-            echo "Creating fallback index.html..."
-            sudo tee /var/www/truepal/dist/index.html > /dev/null << 'EOF'
-          <!DOCTYPE html>
-          <html><head><title>TruePal</title></head>
-          <body><h1>TruePal Application</h1><p>Frontend deployment completed. React app loading...</p></body>
-          </html>
-          EOF
-            sudo chown www-data:www-data /var/www/truepal/dist/index.html
+            echo "❌ index.html not found after extraction! Deployment failed."
+            exit 1
           fi
           
           # Test and reload nginx
@@ -216,8 +205,8 @@ jobs:
           rm -f /tmp/frontend-deploy.tar.gz
           
           # Clean old backups (keep last 5)
-          cd /var/www/truepal/backups 2>/dev/null || true
-          sudo ls -t 2>/dev/null | tail -n +6 | sudo xargs -r rm -rf 2>/dev/null || true
+          cd /var/www/truepal/backups || true
+          ls -t | tail -n +6 | xargs -r sudo rm -rf
           
           echo "✅ Frontend deployment completed"
     
@@ -243,30 +232,32 @@ jobs:
             echo "✅ Backend process is running"
           else
             echo "❌ Backend process not found"
+            exit 1
           fi
           
-          # Check backend HTTP (adjust port if needed)
-          if curl -f http://localhost:8080/health 2>/dev/null; then
+          # Check backend HTTP (adjust port and endpoint if needed)
+          if curl --fail http://localhost:8080/health 2>/dev/null; then
             echo "✅ Backend health check passed"
           else
-            echo "⚠️  Backend health check failed (might need /health endpoint)"
+            echo "⚠️  Backend health check failed"
           fi
           
           # Check frontend files
           if [ -f "/var/www/truepal/dist/index.html" ]; then
-            echo "✅ Frontend files deployed"
+            echo "✅ Frontend index.html is deployed"
           else
-            echo "❌ Frontend files missing"
+            echo "❌ Frontend index.html is missing"
+            exit 1
           fi
           
           # Check nginx
-          if sudo nginx -t 2>/dev/null; then
-            echo "✅ Nginx configuration valid"
+          if sudo systemctl is-active --quiet nginx; then
+            echo "✅ Nginx service is active"
           else
-            echo "❌ Nginx configuration error"
+            echo "❌ Nginx service is not running"
           fi
           
           echo ""
           echo "🚀 Full stack deployment completed!"
-          echo "🌐 Frontend: http://157.180.116.88"
-          echo "🔗 Backend API: http://157.180.116.88/api"
+          echo "🌐 Frontend: http://${{ secrets.VPS_HOST }}"
+          echo "🔗 Backend API: http://${{ secrets.VPS_HOST }}/api"
