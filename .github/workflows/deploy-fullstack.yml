@@ -39,20 +39,23 @@ jobs:
         # Create startup script
         cat > backend-deploy/start.sh << 'EOF'
         #!/bin/bash
+        set -e
         
         # Stop existing application
-        sudo pkill -f "app.jar" || true
-        sleep 5
-        
-        # Start new application
-        cd /opt/truepal/backend
-        nohup java -jar app.jar > /var/log/truepal/backend.log 2>&1 &
-        
-        echo "Backend started"
+        pkill -f "app.jar" || true
         sleep 3
         
-        # Check if application started successfully
-        if pgrep -f "app.jar" > /dev/null; then
+        # Start new application in background
+        cd /opt/truepal/backend
+        nohup java -jar app.jar > /var/log/truepal/backend.log 2>&1 &
+        APP_PID=$!
+        echo $APP_PID > /var/run/truepal.pid
+        
+        echo "Backend started with PID: $APP_PID"
+        sleep 5
+        
+        # Quick check if process is still running
+        if kill -0 $APP_PID 2>/dev/null; then
             echo "Backend is running"
         else
             echo "Backend failed to start"
@@ -80,6 +83,7 @@ jobs:
         username: ${{ secrets.VPS_USER }}
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT || 22 }}
+        timeout: 300s
         script: |
           # Create backend directories
           sudo mkdir -p /opt/truepal/backend
@@ -100,9 +104,16 @@ jobs:
           sudo chown -R deploy:deploy /opt/truepal/backend
           sudo chmod +x /opt/truepal/backend/start.sh
           sudo chown -R deploy:deploy /var/log/truepal
+          sudo mkdir -p /var/run
+          sudo chown deploy:deploy /var/run
           
-          # Start backend
-          /opt/truepal/backend/start.sh
+          # Start backend (run in background to avoid blocking)
+          echo "Starting backend application..."
+          /opt/truepal/backend/start.sh &
+          START_PID=$!
+          
+          # Wait for startup script to complete (max 30 seconds)
+          timeout 30 wait $START_PID || true
           
           # Clean up
           rm -f /tmp/backend-deploy.tar.gz
