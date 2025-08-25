@@ -37,6 +37,11 @@ const UserManagement: React.FC = () => {
       if (response.data.success) {
         setUsers(response.data.data);
         console.log('Users updated:', response.data.data);
+        console.log('Individual user statuses:');
+        response.data.data.forEach((user, index) => {
+          console.log(`  User ${index}: ${user.username}, isActive: ${user.isActive} (type: ${typeof user.isActive})`);
+          console.log(`  Full user object:`, JSON.stringify(user, null, 2));
+        });
       } else {
         console.error('Failed to fetch users: API returned success: false');
         toast.error('Failed to load users');

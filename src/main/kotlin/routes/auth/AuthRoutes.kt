@@ -130,8 +130,14 @@ fun Route.authRoutes() {
                 get {
                     try {
                         val users = authService.getAllUsers()
+                        println("getAllUsers endpoint - returning ${users.size} users:")
+                        users.forEach { user ->
+                            println("  User ID: ${user.id}, username: ${user.username}, isActive: ${user.isActive}")
+                        }
                         call.respond(ApiResponse.success(users))
                     } catch (e: Exception) {
+                        println("Error in getAllUsers endpoint: ${e.message}")
+                        e.printStackTrace()
                         call.response.status(HttpStatusCode.InternalServerError)
                         call.respond(ApiResponse.error<List<UserDto>>("Internal server error"))
                     }

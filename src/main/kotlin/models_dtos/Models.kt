@@ -1,5 +1,6 @@
 package com.newmotion.models_dtos
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.datetime.Instant
 
@@ -117,7 +118,7 @@ data class UserDto(
     val email: String,
     val fullName: String,
     val role: UserRole,
-    val isActive: Boolean = true,
+    val isActive: Boolean,
     val createdAt: Instant? = null,
     val lastLoginAt: Instant? = null
 )

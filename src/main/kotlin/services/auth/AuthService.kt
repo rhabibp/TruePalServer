@@ -119,7 +119,16 @@ class AuthServiceImpl(
 
     override suspend fun toggleUserStatus(userId: Long): UserDto? {
         val user = userRepository.findById(userId) ?: return null
-        val updateRequest = UpdateUserRequest(isActive = !user.isActive)
-        return userRepository.updateUser(userId, updateRequest)
+        println("Current user status - ID: ${user.id}, isActive: ${user.isActive}")
+        
+        val newStatus = !user.isActive
+        val updateRequest = UpdateUserRequest(isActive = newStatus)
+        println("Creating update request with isActive: $newStatus")
+        
+        val updatedUser = userRepository.updateUser(userId, updateRequest)
+        println("Updated user result: $updatedUser")
+        println("Updated user isActive: ${updatedUser?.isActive}")
+        
+        return updatedUser
     }
 }

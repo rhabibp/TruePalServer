@@ -654,12 +654,38 @@ class UserRepositoryImpl : UserRepository {
     }
 
     override suspend fun updateUser(id: Long, request: UpdateUserRequest): UserDto? = dbQuery {
-        User.findById(id)?.apply {
-            request.email?.let { email = it }
-            request.fullName?.let { fullName = it }
-            request.role?.let { role = it }
-            request.isActive?.let { isActive = it }
-        }?.toDto()
+        println("Repository updateUser called - ID: $id, request: $request")
+        
+        val user = User.findById(id)
+        if (user == null) {
+            println("User not found for ID: $id")
+            return@dbQuery null
+        }
+        
+        println("Found user - current isActive: ${user.isActive}")
+        
+        val updatedUser = user.apply {
+            request.email?.let { 
+                println("Updating email to: $it")
+                email = it 
+            }
+            request.fullName?.let { 
+                println("Updating fullName to: $it")
+                fullName = it 
+            }
+            request.role?.let { 
+                println("Updating role to: $it")
+                role = it 
+            }
+            request.isActive?.let { 
+                println("Updating isActive from ${this.isActive} to: $it")
+                isActive = it 
+            }
+        }
+        
+        val result = updatedUser.toDto()
+        println("Repository returning user with isActive: ${result.isActive}")
+        result
     }
 
     override suspend fun updateLastLogin(id: Long, instant: kotlinx.datetime.Instant): Boolean = dbQuery {
