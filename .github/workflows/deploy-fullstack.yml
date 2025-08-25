@@ -34,7 +34,7 @@ jobs:
     - name: Create backend deployment package
       run: |
         mkdir -p backend-deploy
-        cp build/libs/*.jar backend-deploy/app.jar
+        cp build/libs/truepalserver-all.jar backend-deploy/app.jar
         
         # Create startup script
         cat > backend-deploy/start.sh << 'EOF'
