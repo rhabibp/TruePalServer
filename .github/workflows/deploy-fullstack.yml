@@ -1,0 +1,581 @@
+name: Deploy TruePal Full Stack
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+    types: [ closed ]
+  workflow_dispatch:
+
+env:
+  JAVA_VERSION: '17'
+  NODE_VERSION: '18'
+  GRADLE_OPTS: '-Xmx2g -Dfile.encoding=UTF-8'
+
+jobs:
+  # =====================================================
+  # BUILD AND TEST JOBS (Run in parallel)
+  # =====================================================
+  
+  test-backend:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: truepal_test
+          POSTGRES_USER: truepal
+          POSTGRES_PASSWORD: hrisgood
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup JDK ${{ env.JAVA_VERSION }}
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+    
+    - name: Cache Gradle dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+    
+    - name: Grant execute permission to gradlew
+      run: chmod +x ./gradlew
+    
+    - name: Run backend tests
+      run: ./gradlew test --no-daemon
+      env:
+        DATABASE_URL: jdbc:postgresql://localhost:5432/truepal_test
+        DATABASE_USER: truepal
+        DATABASE_PASSWORD: hrisgood
+  
+  test-frontend:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js ${{ env.NODE_VERSION }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: Install frontend dependencies
+      run: |
+        cd frontend
+        npm ci --prefer-offline --no-audit
+    
+    - name: Run frontend linting
+      run: |
+        cd frontend
+        npm run lint
+    
+    - name: Build frontend for testing
+      run: |
+        cd frontend
+        npm run build
+      env:
+        NODE_ENV: production
+
+  # =====================================================
+  # DEPLOYMENT JOB (Only on push to master)
+  # =====================================================
+  
+  deploy:
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')) || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for better caching
+    
+    # =====================
+    # BACKEND BUILD
+    # =====================
+    
+    - name: Setup JDK ${{ env.JAVA_VERSION }}
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+    
+    - name: Cache Gradle dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+    
+    - name: Grant execute permission to gradlew
+      run: chmod +x ./gradlew
+    
+    - name: Build backend with Gradle
+      run: ./gradlew build -x test --no-daemon
+      env:
+        GRADLE_OPTS: ${{ env.GRADLE_OPTS }}
+    
+    - name: Create backend deployment package
+      run: |
+        mkdir -p backend-deploy
+        cp build/libs/*.jar backend-deploy/app.jar
+        
+        # Create application configuration
+        cat > backend-deploy/application.yaml << 'EOF'
+        ktor:
+          application:
+            modules:
+              - com.newmotion.ApplicationKt.module
+          deployment:
+            port: 8080
+            host: 0.0.0.0
+        
+        database:
+          url: "jdbc:postgresql://localhost:5432/truepal_db"
+          driver: "org.postgresql.Driver"
+          user: "truepal"
+          password: "hrisgood"
+          maxPoolSize: 10
+          minIdleConnections: 2
+        EOF
+        
+        # Create optimized startup script with health checks
+        cat > backend-deploy/start.sh << 'EOF'
+        #!/bin/bash
+        set -euo pipefail
+        
+        APP_DIR="/opt/truepal/backend"
+        LOG_FILE="/var/log/truepal/backend.log"
+        PID_FILE="/var/run/truepal/backend.pid"
+        APP_USER="deploy"
+        
+        # Create PID directory
+        sudo mkdir -p "$(dirname "$PID_FILE")"
+        sudo chown "$APP_USER:$APP_USER" "$(dirname "$PID_FILE")"
+        
+        # Function to stop existing application
+        stop_app() {
+            if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+                echo "Stopping existing application (PID: $(cat "$PID_FILE"))"
+                kill "$(cat "$PID_FILE")" && sleep 5
+                if kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+                    echo "Force killing application"
+                    kill -9 "$(cat "$PID_FILE")"
+                fi
+                rm -f "$PID_FILE"
+            fi
+            
+            # Fallback: kill any remaining processes
+            sudo pkill -f "app.jar" || true
+            sleep 2
+        }
+        
+        # Function to start application
+        start_app() {
+            echo "Starting TruePal backend..."
+            cd "$APP_DIR"
+            
+            # Start with proper Java options
+            nohup java \
+              -server \
+              -Xms512m \
+              -Xmx1g \
+              -XX:+UseG1GC \
+              -XX:+UseStringDeduplication \
+              -Dfile.encoding=UTF-8 \
+              -Djava.awt.headless=true \
+              -jar app.jar > "$LOG_FILE" 2>&1 &
+            
+            echo $! > "$PID_FILE"
+            echo "Backend started with PID: $(cat "$PID_FILE")"
+        }
+        
+        # Function to check if app is running
+        check_health() {
+            local max_attempts=30
+            local attempt=1
+            
+            echo "Waiting for application to start..."
+            while [ $attempt -le $max_attempts ]; do
+                if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+                    # Check if port 8080 is open
+                    if nc -z localhost 8080 2>/dev/null; then
+                        echo " Backend is running and responding on port 8080"
+                        return 0
+                    fi
+                fi
+                echo "Attempt $attempt/$max_attempts: Waiting for backend..."
+                sleep 2
+                ((attempt++))
+            done
+            
+            echo "L Backend failed to start properly"
+            if [ -f "$LOG_FILE" ]; then
+                echo "Last 20 lines of log:"
+                tail -20 "$LOG_FILE"
+            fi
+            return 1
+        }
+        
+        # Main execution
+        echo "=== TruePal Backend Deployment ==="
+        stop_app
+        start_app
+        check_health
+        
+        echo " Backend deployment completed successfully"
+        EOF
+        
+        chmod +x backend-deploy/start.sh
+        
+        # Create systemd service file
+        cat > backend-deploy/truepal.service << 'EOF'
+        [Unit]
+        Description=TruePal Backend Application
+        After=network.target postgresql.service
+        Wants=postgresql.service
+        
+        [Service]
+        Type=simple
+        User=deploy
+        Group=deploy
+        WorkingDirectory=/opt/truepal/backend
+        ExecStart=/usr/bin/java -server -Xms512m -Xmx1g -XX:+UseG1GC -XX:+UseStringDeduplication -Dfile.encoding=UTF-8 -Djava.awt.headless=true -jar /opt/truepal/backend/app.jar
+        ExecStop=/bin/kill -TERM $MAINPID
+        Restart=always
+        RestartSec=10
+        StandardOutput=journal
+        StandardError=journal
+        SyslogIdentifier=truepal-backend
+        
+        # Security settings
+        NoNewPrivileges=true
+        PrivateTmp=true
+        ProtectSystem=strict
+        ProtectHome=true
+        ReadWritePaths=/var/log/truepal
+        
+        [Install]
+        WantedBy=multi-user.target
+        EOF
+        
+        # Package everything
+        tar -czf backend-deploy.tar.gz -C backend-deploy .
+    
+    # =====================
+    # FRONTEND BUILD
+    # =====================
+    
+    - name: Setup Node.js ${{ env.NODE_VERSION }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: Install frontend dependencies
+      run: |
+        cd frontend
+        npm ci --prefer-offline --no-audit
+    
+    - name: Build frontend for production
+      run: |
+        cd frontend
+        npm run build
+      env:
+        NODE_ENV: production
+        VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'http://157.180.116.88/api' }}
+    
+    - name: Create frontend deployment package
+      run: |
+        cd frontend
+        
+        # Verify build output
+        if [ ! -d "dist" ] || [ ! -f "dist/index.html" ]; then
+          echo "L Frontend build failed - dist directory or index.html missing"
+          exit 1
+        fi
+        
+        echo "=æ Frontend build contents:"
+        ls -la dist/
+        
+        # Create deployment package
+        tar -czf ../frontend-deploy.tar.gz -C dist .
+        
+        echo " Frontend build completed - $(du -h ../frontend-deploy.tar.gz | cut -f1) package created"
+    
+    # =====================
+    # DEPLOY TO VPS
+    # =====================
+    
+    - name: Deploy backend to VPS
+      uses: appleboy/scp-action@v0.1.4
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        source: "backend-deploy.tar.gz"
+        target: "/tmp/"
+        timeout: 300s
+    
+    - name: Deploy frontend to VPS
+      uses: appleboy/scp-action@v0.1.4
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        source: "frontend-deploy.tar.gz"
+        target: "/tmp/"
+        timeout: 300s
+    
+    - name: Install and configure full stack deployment
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        timeout: 600s
+        script: |
+          set -euo pipefail
+          
+          echo "=€ Starting TruePal full-stack deployment..."
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          
+          # =====================
+          # BACKEND DEPLOYMENT
+          # =====================
+          echo "=æ Deploying backend..."
+          
+          # Create backend directories
+          sudo mkdir -p /opt/truepal/backend
+          sudo mkdir -p /var/log/truepal
+          sudo mkdir -p /var/run/truepal
+          sudo mkdir -p /opt/truepal/backups
+          
+          # Backup current backend if exists
+          if [ -f "/opt/truepal/backend/app.jar" ]; then
+            echo "Creating backend backup..."
+            sudo cp /opt/truepal/backend/app.jar "/opt/truepal/backups/app.jar.backup.$TIMESTAMP"
+            echo "Backend backup created: app.jar.backup.$TIMESTAMP"
+          fi
+          
+          # Extract and install new backend
+          cd /tmp
+          tar -xzf backend-deploy.tar.gz -C /opt/truepal/backend/
+          
+          # Set ownership and permissions
+          sudo chown -R ${{ secrets.VPS_USER }}:${{ secrets.VPS_USER }} /opt/truepal/backend
+          sudo chown -R ${{ secrets.VPS_USER }}:${{ secrets.VPS_USER }} /var/log/truepal
+          sudo chown -R ${{ secrets.VPS_USER }}:${{ secrets.VPS_USER }} /var/run/truepal
+          sudo chmod +x /opt/truepal/backend/start.sh
+          
+          # Install systemd service if it doesn't exist
+          if [ ! -f "/etc/systemd/system/truepal.service" ]; then
+            echo "Installing systemd service..."
+            sudo cp /opt/truepal/backend/truepal.service /etc/systemd/system/
+            sudo systemctl daemon-reload
+            sudo systemctl enable truepal
+          fi
+          
+          # =====================
+          # FRONTEND DEPLOYMENT
+          # =====================
+          echo "< Deploying frontend..."
+          
+          # Create frontend directories
+          sudo mkdir -p /var/www/truepal/dist
+          sudo mkdir -p /var/www/truepal/backups
+          
+          # Backup current frontend if exists
+          if [ -d "/var/www/truepal/dist" ] && [ "$(ls -A /var/www/truepal/dist 2>/dev/null)" ]; then
+            echo "Creating frontend backup..."
+            sudo cp -r /var/www/truepal/dist "/var/www/truepal/backups/dist_backup_$TIMESTAMP"
+            echo "Frontend backup created: dist_backup_$TIMESTAMP"
+          fi
+          
+          # Clean and extract new frontend
+          sudo rm -rf /var/www/truepal/dist/*
+          tar -xzf frontend-deploy.tar.gz -C /var/www/truepal/dist/
+          
+          # Set proper ownership and permissions
+          sudo chown -R www-data:www-data /var/www/truepal/dist
+          sudo chmod -R 755 /var/www/truepal/dist
+          sudo find /var/www/truepal/dist -type f -exec sudo chmod 644 {} \;
+          
+          # =====================
+          # START SERVICES
+          # =====================
+          echo "= Starting services..."
+          
+          # Start backend using the script
+          /opt/truepal/backend/start.sh
+          
+          # Verify and reload nginx
+          echo "Checking nginx configuration..."
+          if sudo nginx -t; then
+            sudo systemctl reload nginx
+            echo " Nginx reloaded successfully"
+          else
+            echo "L Nginx configuration test failed"
+            sudo nginx -t
+            exit 1
+          fi
+          
+          # Clean up deployment files
+          rm -f /tmp/backend-deploy.tar.gz /tmp/frontend-deploy.tar.gz
+          
+          # Clean old backups (keep last 5)
+          echo ">ù Cleaning old backups..."
+          cd /opt/truepal/backups && sudo ls -t | tail -n +6 | sudo xargs -r rm -f
+          cd /var/www/truepal/backups && sudo ls -t | tail -n +6 | sudo xargs -r rm -rf
+          
+          echo " Full-stack deployment completed successfully!"
+    
+    # =====================
+    # POST-DEPLOYMENT VERIFICATION
+    # =====================
+    
+    - name: Run deployment verification
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        timeout: 180s
+        script: |
+          set -euo pipefail
+          
+          echo "= Running post-deployment verification..."
+          
+          # Wait for services to stabilize
+          echo "Waiting 20 seconds for services to stabilize..."
+          sleep 20
+          
+          # Check backend process
+          echo "Checking backend process..."
+          if pgrep -f "app.jar" > /dev/null; then
+            echo " Backend process is running (PID: $(pgrep -f 'app.jar'))"
+          else
+            echo "L Backend process not found"
+            echo "Recent backend logs:"
+            tail -20 /var/log/truepal/backend.log || echo "No backend logs found"
+            exit 1
+          fi
+          
+          # Check backend port
+          echo "Checking backend port 8080..."
+          if nc -z localhost 8080; then
+            echo " Backend is listening on port 8080"
+          else
+            echo "L Backend not responding on port 8080"
+            echo "Checking what's listening on port 8080:"
+            sudo netstat -tlnp | grep 8080 || echo "Nothing listening on port 8080"
+            exit 1
+          fi
+          
+          # Test backend health endpoint (if available)
+          echo "Testing backend HTTP response..."
+          if curl -f -m 10 http://localhost:8080/ 2>/dev/null || curl -f -m 10 http://localhost:8080/health 2>/dev/null; then
+            echo " Backend HTTP endpoint is responding"
+          else
+            echo "  Backend HTTP endpoint not responding (this may be expected if no root endpoint exists)"
+          fi
+          
+          # Check frontend files
+          echo "Checking frontend files..."
+          if [ -f "/var/www/truepal/dist/index.html" ]; then
+            echo " Frontend files are deployed"
+            echo "Frontend files count: $(find /var/www/truepal/dist -type f | wc -l)"
+          else
+            echo "L Frontend index.html not found"
+            ls -la /var/www/truepal/dist/ || echo "Frontend dist directory not found"
+            exit 1
+          fi
+          
+          # Check nginx status
+          echo "Checking nginx..."
+          if sudo systemctl is-active nginx > /dev/null; then
+            echo " Nginx is running"
+          else
+            echo "L Nginx is not running"
+            sudo systemctl status nginx
+            exit 1
+          fi
+          
+          # Test nginx configuration
+          if sudo nginx -t 2>/dev/null; then
+            echo " Nginx configuration is valid"
+          else
+            echo "L Nginx configuration has errors"
+            sudo nginx -t
+            exit 1
+          fi
+          
+          # System resource check
+          echo "System resources:"
+          echo "Memory usage: $(free -h | grep '^Mem:' | awk '{print $3 "/" $2}')"
+          echo "Disk usage: $(df -h / | tail -1 | awk '{print $3 "/" $2 " (" $5 " used)"}')"
+          echo "Load average: $(uptime | awk -F'load average:' '{print $2}')"
+          
+          echo ""
+          echo "<‰ === DEPLOYMENT VERIFICATION COMPLETE ==="
+          echo "< Frontend: http://${{ secrets.VPS_HOST }}"
+          echo "= Backend API: http://${{ secrets.VPS_HOST }}/api"
+          echo "=Ê Health Check: http://${{ secrets.VPS_HOST }}/health"
+          echo "=P Deployed at: $(date '+%Y-%m-%d %H:%M:%S UTC')"
+          echo " TruePal full-stack deployment successful!"
+
+    # =====================
+    # OPTIONAL: SLACK/DISCORD NOTIFICATION
+    # =====================
+    
+    - name: Send deployment notification
+      if: always()
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        script: |
+          # Simple deployment summary
+          echo "=Ë === DEPLOYMENT SUMMARY ==="
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Triggered by: ${{ github.actor }}"
+          echo "Status: ${{ job.status }}"
+          echo "Time: $(date '+%Y-%m-%d %H:%M:%S UTC')"
+          
+          # Optionally write to a deployment log
+          echo "$(date '+%Y-%m-%d %H:%M:%S') - Deployment completed - ${{ github.sha }} - ${{ job.status }}" >> /var/log/truepal/deployments.log
