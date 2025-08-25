@@ -49,7 +49,6 @@ jobs:
         cd /opt/truepal/backend
         nohup java -jar app.jar > /var/log/truepal/backend.log 2>&1 &
         APP_PID=$!
-        echo $APP_PID > /var/run/truepal.pid
         
         echo "Backend started with PID: $APP_PID"
         sleep 5
@@ -113,7 +112,13 @@ jobs:
           START_PID=$!
           
           # Wait for startup script to complete (max 30 seconds)
-          timeout 30 wait $START_PID || true
+          for i in $(seq 1 30); do
+            if ! kill -0 $START_PID 2>/dev/null; then
+              echo "Startup script completed"
+              break
+            fi
+            sleep 1
+          done
           
           # Clean up
           rm -f /tmp/backend-deploy.tar.gz
