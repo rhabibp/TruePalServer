@@ -45,13 +45,16 @@ jobs:
         pkill -f "app.jar" || true
         sleep 3
         
-        # Start new application in background
+        # Start new application completely detached from terminal
         cd /opt/truepal/backend
-        nohup java -jar app.jar > /var/log/truepal/backend.log 2>&1 &
+        setsid nohup java -jar app.jar > /var/log/truepal/backend.log 2>&1 &
         APP_PID=$!
         
+        # Disown the process to prevent it from being killed when parent exits
+        disown $APP_PID
+        
         echo "Backend started with PID: $APP_PID"
-        sleep 5
+        sleep 3
         
         # Quick check if process is still running
         if kill -0 $APP_PID 2>/dev/null; then
@@ -106,19 +109,11 @@ jobs:
           sudo mkdir -p /var/run
           sudo chown deploy:deploy /var/run
           
-          # Start backend (run in background to avoid blocking)
+          # Start backend
           echo "Starting backend application..."
-          /opt/truepal/backend/start.sh &
-          START_PID=$!
+          /opt/truepal/backend/start.sh
           
-          # Wait for startup script to complete (max 30 seconds)
-          for i in $(seq 1 30); do
-            if ! kill -0 $START_PID 2>/dev/null; then
-              echo "Startup script completed"
-              break
-            fi
-            sleep 1
-          done
+          echo "Backend startup script completed"
           
           # Clean up
           rm -f /tmp/backend-deploy.tar.gz
