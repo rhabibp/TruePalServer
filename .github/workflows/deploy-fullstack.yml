@@ -177,19 +177,38 @@ jobs:
           # Clean and extract new frontend
           sudo rm -rf /var/www/truepal/dist
           sudo mkdir -p /var/www/truepal/dist
+          
+          # Extract to temporary directory first, then move
           cd /tmp
-          tar -xzf frontend-deploy.tar.gz -C /var/www/truepal/dist/
+          mkdir -p frontend-temp
+          echo "Extracting frontend files..."
+          tar -xzf frontend-deploy.tar.gz -C frontend-temp/
+          
+          # Verify extraction worked
+          if [ ! -f "frontend-temp/index.html" ]; then
+            echo "Frontend extraction failed - index.html not found in temp directory"
+            ls -la frontend-temp/
+            exit 1
+          fi
+          
+          echo "Moving files to web directory..."
+          sudo cp -r frontend-temp/* /var/www/truepal/dist/
+          rm -rf frontend-temp
           
           # Set permissions
           sudo chown -R www-data:www-data /var/www/truepal/dist
           sudo chmod -R 755 /var/www/truepal/dist
           sudo find /var/www/truepal/dist -type f -exec sudo chmod 644 {} \;
           
-          # Verify deployment
+          # Verify final deployment
           if [ ! -f "/var/www/truepal/dist/index.html" ]; then
-            echo "index.html not found! Deployment failed."
+            echo "Final verification failed - index.html not found in web directory"
+            echo "Contents of /var/www/truepal/dist/:"
+            ls -la /var/www/truepal/dist/
             exit 1
           fi
+          
+          echo "Frontend files deployed successfully"
           
           # Test and reload nginx
           sudo nginx -t && sudo systemctl reload nginx
