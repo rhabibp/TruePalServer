@@ -399,6 +399,8 @@ server {
 ### 4.2 Enable the Site
 
 ```bash
+
+
 # Enable the site
 sudo ln -s /etc/nginx/sites-available/truepal /etc/nginx/sites-enabled/
 
@@ -428,7 +430,7 @@ ssh deploy@157.180.116.88
 sudo visudo
 
 # Add this line at the end (replace 'deploy' if your username is different):
-deploy ALL=(ALL) NOPASSWD: /usr/sbin/nginx, /bin/systemctl reload nginx, /bin/systemctl restart nginx, /bin/chown, /bin/chmod, /bin/mkdir, /bin/cp, /bin/rm, /usr/bin/find, /bin/ls, /usr/bin/xargs, /bin/tar
+deploy ALL=(ALL) NOPASSWD: /usr/sbin/nginx, /bin/systemctl reload nginx, /bin/systemctl restart nginx, /bin/systemctl daemon-reload, /bin/systemctl enable truepal, /bin/systemctl restart truepal, /bin/chown, /bin/chmod, /bin/mkdir, /bin/cp, /bin/rm, /usr/bin/find, /bin/ls, /usr/bin/xargs, /bin/tar, /usr/bin/tee, /usr/bin/pkill
 
 # Save and exit (Ctrl+X, Y, Enter in nano)
 exit
