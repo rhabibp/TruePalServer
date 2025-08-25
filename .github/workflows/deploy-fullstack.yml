@@ -36,31 +36,60 @@ jobs:
         mkdir -p backend-deploy
         cp build/libs/truepalserver-all.jar backend-deploy/app.jar
         
+        # Create systemd service file
+        cat > backend-deploy/truepal-backend.service << 'EOF'
+        [Unit]
+        Description=TruePal Backend Service
+        After=network.target
+        Wants=network.target
+        
+        [Service]
+        Type=simple
+        User=deploy
+        Group=deploy
+        WorkingDirectory=/opt/truepal/backend
+        ExecStart=/usr/bin/java -jar /opt/truepal/backend/app.jar
+        Restart=always
+        RestartSec=10
+        StandardOutput=append:/var/log/truepal/backend.log
+        StandardError=append:/var/log/truepal/backend.log
+        
+        # Security settings
+        NoNewPrivileges=true
+        PrivateTmp=true
+        
+        [Install]
+        WantedBy=multi-user.target
+        EOF
+        
         # Create startup script
         cat > backend-deploy/start.sh << 'EOF'
         #!/bin/bash
         set -e
         
-        # Stop existing application
+        echo "Setting up systemd service..."
+        
+        # Install systemd service
+        sudo cp /opt/truepal/backend/truepal-backend.service /etc/systemd/system/
+        sudo systemctl daemon-reload
+        
+        # Stop any existing processes
+        sudo systemctl stop truepal-backend 2>/dev/null || true
         pkill -f "app.jar" || true
         sleep 3
         
-        # Start new application completely detached from terminal
-        cd /opt/truepal/backend
-        setsid nohup java -jar app.jar > /var/log/truepal/backend.log 2>&1 &
-        APP_PID=$!
+        # Enable and start the service
+        sudo systemctl enable truepal-backend
+        sudo systemctl start truepal-backend
         
-        # Disown the process to prevent it from being killed when parent exits
-        disown $APP_PID
-        
-        echo "Backend started with PID: $APP_PID"
-        sleep 3
-        
-        # Quick check if process is still running
-        if kill -0 $APP_PID 2>/dev/null; then
-            echo "Backend is running"
+        # Check status
+        sleep 5
+        if sudo systemctl is-active --quiet truepal-backend; then
+            echo "Backend service started successfully"
+            sudo systemctl status truepal-backend --no-pager -l
         else
-            echo "Backend failed to start"
+            echo "Backend service failed to start"
+            sudo journalctl -u truepal-backend -n 20 --no-pager
             exit 1
         fi
         EOF
@@ -106,8 +135,9 @@ jobs:
           sudo chown -R deploy:deploy /opt/truepal/backend
           sudo chmod +x /opt/truepal/backend/start.sh
           sudo chown -R deploy:deploy /var/log/truepal
-          sudo mkdir -p /var/run
-          sudo chown deploy:deploy /var/run
+          
+          # Ensure deploy user can manage the systemd service
+          echo "deploy ALL=(ALL) NOPASSWD: /bin/systemctl start truepal-backend, /bin/systemctl stop truepal-backend, /bin/systemctl enable truepal-backend, /bin/systemctl disable truepal-backend, /bin/systemctl status truepal-backend, /bin/systemctl daemon-reload, /bin/systemctl is-active truepal-backend, /usr/bin/journalctl -u truepal-backend *, /bin/cp * /etc/systemd/system/" | sudo tee -a /etc/sudoers.d/truepal-deploy
           
           # Start backend
           echo "Starting backend application..."
