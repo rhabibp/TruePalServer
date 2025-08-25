@@ -211,29 +211,42 @@ fun Route.authRoutes() {
                 put("/{id}/toggle-status") {
                     try {
                         val userId = call.parameters["id"]?.toLongOrNull()
+                        println("Toggle status request for userId: $userId")
+                        
                         if (userId == null) {
+                            println("Invalid user ID provided: ${call.parameters["id"]}")
                             call.response.status(HttpStatusCode.BadRequest)
                             call.respond(ApiResponse.error<UserDto>("Invalid user ID"))
                             return@put
                         }
 
                         val currentUser = call.getCurrentUser()
+                        println("Current user: ${currentUser?.userId}, target user: $userId")
+                        
                         if (currentUser?.userId == userId) {
+                            println("User attempted to toggle their own account status")
                             call.response.status(HttpStatusCode.BadRequest)
                             call.respond(ApiResponse.error<UserDto>("Cannot toggle your own account status"))
                             return@put
                         }
 
+                        println("Calling toggleUserStatus service...")
                         val updatedUser = authService.toggleUserStatus(userId)
+                        println("Service returned: $updatedUser")
+                        
                         if (updatedUser != null) {
+                            println("Successfully toggled user status. New status: ${updatedUser.isActive}")
                             call.respond(ApiResponse.success(updatedUser, "User status updated successfully"))
                         } else {
+                            println("User not found for ID: $userId")
                             call.response.status(HttpStatusCode.NotFound)
                             call.respond(ApiResponse.error<UserDto>("User not found"))
                         }
                     } catch (e: Exception) {
+                        println("Error in toggle-status endpoint: ${e.message}")
+                        e.printStackTrace()
                         call.response.status(HttpStatusCode.InternalServerError)
-                        call.respond(ApiResponse.error<UserDto>("Internal server error"))
+                        call.respond(ApiResponse.error<UserDto>("Internal server error: ${e.message}"))
                     }
                 }
             }

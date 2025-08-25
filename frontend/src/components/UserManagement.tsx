@@ -26,13 +26,20 @@ const UserManagement: React.FC = () => {
   // Fetch all users
   const fetchUsers = async () => {
     try {
+      console.log('Fetching users...');
       const response = await apiClient.get<{
         success: boolean;
         data: User[];
       }>('/admin/users');
       
+      console.log('Fetch users response:', response.data);
+      
       if (response.data.success) {
         setUsers(response.data.data);
+        console.log('Users updated:', response.data.data);
+      } else {
+        console.error('Failed to fetch users: API returned success: false');
+        toast.error('Failed to load users');
       }
     } catch (error: any) {
       console.error('Failed to fetch users:', error);
@@ -86,18 +93,40 @@ const UserManagement: React.FC = () => {
 
   const handleToggleUserStatus = async (userId: number) => {
     try {
+      console.log('Attempting to toggle user status for userId:', userId);
       const response = await apiClient.put<{
         success: boolean;
         data: User;
       }>(`/admin/users/${userId}/toggle-status`);
 
+      console.log('Toggle response:', response.data);
+
       if (response.data.success) {
         toast.success('User status updated successfully!');
         fetchUsers(); // Refresh the user list
+      } else {
+        console.error('API returned success: false');
+        toast.error('Failed to update user status');
       }
     } catch (error: any) {
       console.error('Toggle user status error:', error);
-      const errorMessage = error.response?.data?.error || 'Failed to update user status';
+      console.error('Error details:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message
+      });
+      
+      let errorMessage = 'Failed to update user status';
+      
+      if (error.response?.status === 401) {
+        errorMessage = 'Authentication required. Please log in as admin.';
+      } else if (error.response?.status === 403) {
+        errorMessage = 'Access denied. Admin privileges required.';
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+      
       toast.error(errorMessage);
     }
   };
