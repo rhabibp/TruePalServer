@@ -109,14 +109,13 @@ jobs:
         source: "backend-deploy.tar.gz"
         target: "/tmp/"
     
-    - name: Install and restart backend service
+    - name: Extract and setup backend files
       uses: appleboy/ssh-action@v1.0.0
       with:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USER }}
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT || 22 }}
-        timeout: 300s
         script: |
           # Create backend directories
           sudo mkdir -p /opt/truepal/backend
@@ -141,12 +140,34 @@ jobs:
           # Ensure deploy user can manage the systemd service
           echo "deploy ALL=(ALL) NOPASSWD: /bin/systemctl start truepal-backend, /bin/systemctl stop truepal-backend, /bin/systemctl enable truepal-backend, /bin/systemctl disable truepal-backend, /bin/systemctl status truepal-backend, /bin/systemctl daemon-reload, /bin/systemctl is-active truepal-backend, /usr/bin/journalctl -u truepal-backend *, /bin/cp * /etc/systemd/system/" | sudo tee -a /etc/sudoers.d/truepal-deploy
           
-          # Start backend
+          # Clean up
+          rm -f /tmp/backend-deploy.tar.gz
+          echo "Backend files extracted and configured"
+    
+    - name: Start backend service
+      uses: appleboy/ssh-action@v1.0.0
+      continue-on-error: true
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        script: |
           echo "Starting backend application..."
-          /opt/truepal/backend/start.sh || true
+          /opt/truepal/backend/start.sh
+    
+    - name: Verify backend service
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        script: |
+          # Wait a moment for service to fully start
+          sleep 5
           
           # Verify the service is actually running (most important check)
-          sleep 3
           if sudo systemctl is-active --quiet truepal-backend; then
             echo "✅ Backend service is running successfully"
             sudo systemctl status truepal-backend --no-pager -l | head -10
@@ -157,10 +178,6 @@ jobs:
           fi
           
           echo "Backend deployment completed successfully"
-          
-          # Clean up
-          rm -f /tmp/backend-deploy.tar.gz
-          echo "Backend deployment completed"
     
     # =====================
     # FRONTEND DEPLOYMENT
