@@ -65,7 +65,6 @@ jobs:
         # Create startup script
         cat > backend-deploy/start.sh << 'EOF'
         #!/bin/bash
-        set -e
         
         echo "Setting up systemd service..."
         
@@ -82,16 +81,10 @@ jobs:
         sudo systemctl enable truepal-backend
         sudo systemctl start truepal-backend
         
-        # Check status
-        sleep 5
-        if sudo systemctl is-active --quiet truepal-backend; then
-            echo "Backend service started successfully"
-            sudo systemctl status truepal-backend --no-pager -l
-        else
-            echo "Backend service failed to start"
-            sudo journalctl -u truepal-backend -n 20 --no-pager
-            exit 1
-        fi
+        echo "Systemd service management completed"
+        
+        # Exit cleanly - let the calling script handle verification
+        exit 0
         EOF
         
         chmod +x backend-deploy/start.sh
@@ -141,9 +134,20 @@ jobs:
           
           # Start backend
           echo "Starting backend application..."
-          /opt/truepal/backend/start.sh
+          /opt/truepal/backend/start.sh || true
           
-          echo "Backend startup script completed"
+          # Verify the service is actually running (most important check)
+          sleep 3
+          if sudo systemctl is-active --quiet truepal-backend; then
+            echo "✅ Backend service is running successfully"
+            sudo systemctl status truepal-backend --no-pager -l | head -10
+          else
+            echo "❌ Backend service failed to start"
+            sudo journalctl -u truepal-backend -n 20 --no-pager
+            exit 1
+          fi
+          
+          echo "Backend deployment completed successfully"
           
           # Clean up
           rm -f /tmp/backend-deploy.tar.gz
