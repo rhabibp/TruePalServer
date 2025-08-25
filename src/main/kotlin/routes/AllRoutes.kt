@@ -749,7 +749,7 @@ fun Route.healthRoutes() {
             call.respond(
                 HttpStatusCode.OK, mapOf(
                     "status" to "healthy",
-                    "timestamp" to System.currentTimeMillis(),
+                    "timestamp" to System.currentTimeMillis().toString().toString(),
                     "service" to "inventory-management"
                 )
             )
@@ -758,7 +758,7 @@ fun Route.healthRoutes() {
                 HttpStatusCode.ServiceUnavailable, mapOf(
                     "status" to "unhealthy",
                     "error" to e.message,
-                    "timestamp" to System.currentTimeMillis()
+                    "timestamp" to System.currentTimeMillis().toString().toString()
                 )
             )
         }
@@ -770,7 +770,7 @@ fun Route.healthRoutes() {
             call.respond(
                 HttpStatusCode.OK, mapOf(
                     "database" to "connected",
-                    "timestamp" to System.currentTimeMillis()
+                    "timestamp" to System.currentTimeMillis().toString()
                 )
             )
         } catch (e: Exception) {
@@ -778,7 +778,7 @@ fun Route.healthRoutes() {
                 HttpStatusCode.ServiceUnavailable, mapOf(
                     "database" to "disconnected",
                     "error" to e.message,
-                    "timestamp" to System.currentTimeMillis()
+                    "timestamp" to System.currentTimeMillis().toString()
                 )
             )
         }
