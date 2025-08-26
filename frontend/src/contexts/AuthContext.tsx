@@ -182,7 +182,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Remove axios default header
     delete apiClient.defaults.headers.common['Authorization'];
     
-    toast.success('Logged out successfully');
+    toast.success('Logged out successfully', {
+      duration: 3000,
+      dismissible: true,
+    });
   };
 
   const refreshUser = async () => {

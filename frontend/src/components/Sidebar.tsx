@@ -5,6 +5,7 @@ import {
     BarChart3, Activity, X, LogOut 
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import truePalLogo from '../assets/truepal_logo.png';
 
 interface SidebarProps {
     isOpen: boolean;
@@ -53,7 +54,14 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
             }`}>
                 {/* Header */}
                 <div className="flex items-center justify-between h-16 px-4 bg-gray-900">
-                    <h1 className="text-xl font-bold text-white">TruePal Inventory</h1>
+                    <div className="flex items-center">
+                        <img
+                            src={truePalLogo}
+                            alt="TruePal Logo"
+                            className="h-8 w-auto mr-3"
+                        />
+                        <h1 className="text-lg font-bold text-white">TruePal Inventory</h1>
+                    </div>
                     <button 
                         className="text-white md:hidden" 
                         onClick={() => setIsOpen(false)}

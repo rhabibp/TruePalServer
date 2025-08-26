@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import { TransactionModalProvider } from '../contexts/TransactionModalContext';
@@ -46,18 +45,6 @@ export function RouterLayout() {
                         <Outlet />
                     </main>
                 </div>
-
-                {/* Toast notifications */}
-                <Toaster 
-                    position="top-right"
-                    toastOptions={{
-                        duration: 4000,
-                        style: {
-                            background: '#363636',
-                            color: '#fff',
-                        },
-                    }}
-                />
             </div>
         </TransactionModalProvider>
     );

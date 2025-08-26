@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Eye, EyeOff, AlertCircle, CheckCircle, Settings } from 'lucide-react';
+import truePalLogo from '../assets/truepal_logo.png';
 
 const Login: React.FC = () => {
   const { login, isLoading } = useAuth();
@@ -173,8 +174,12 @@ const Login: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full space-y-8">
           <div>
-            <div className="mx-auto h-16 w-16 bg-blue-600 rounded-xl shadow-lg flex items-center justify-center">
-              <Settings className="h-8 w-8 text-white" />
+            <div className="mx-auto h-16 w-16 bg-white rounded-xl shadow-lg flex items-center justify-center p-2">
+              <img
+                src={truePalLogo}
+                alt="TruePal Logo"
+                className="h-12 w-auto"
+              />
             </div>
             <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
               Initial Setup
@@ -282,20 +287,12 @@ const Login: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <div className="mx-auto h-16 w-16 bg-blue-600 rounded-xl shadow-lg flex items-center justify-center">
-            <svg
-              className="h-8 w-8 text-white"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-              />
-            </svg>
+          <div className="mx-auto h-16 w-16 bg-white rounded-xl shadow-lg flex items-center justify-center p-2">
+            <img
+              src={truePalLogo}
+              alt="TruePal Logo"
+              className="h-12 w-auto"
+            />
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             Sign in to TruePal Inventory
