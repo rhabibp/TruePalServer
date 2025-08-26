@@ -2,6 +2,18 @@
 build/
 .gradle/
 gradle-app.setting
+gradle/wrapper/gradle-wrapper.properties.orig
+!gradle-wrapper.jar
+
+# Kotlin/Java compilation
+*.class
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
 !gradle-wrapper.jar
 
 # IntelliJ IDEA
@@ -10,6 +22,11 @@ gradle-app.setting
 *.ipr
 *.iws
 out/
+atlassian-ide-plugin.xml
+com_crashlytics_export_strings.xml
+crashlytics.properties
+crashlytics-build.properties
+fabric.properties
 
 # Eclipse
 .project
@@ -17,9 +34,14 @@ out/
 .classpath
 .settings/
 bin/
+.loadpath
+.recommenders
+.target
+.sts4-cache
 
 # VS Code
 .vscode/
+*.code-workspace
 
 # NetBeans
 nbproject/private/
@@ -27,6 +49,11 @@ nbbuild/
 dist/
 nbdist/
 .nb-gradle/
+nbactions.xml
+
+# JetBrains IDEs (other than IntelliJ)
+.idea_modules/
+*.iws
 
 # OS Files
 .DS_Store
@@ -36,11 +63,17 @@ nbdist/
 .Trashes
 ehthumbs.db
 Thumbs.db
+Desktop.ini
 *~
 
 # Logs
 *.log
 logs/
+hs_err_pid*
+
+# JVM crash logs
+hs_err_pid*
+replay_pid*
 
 # Runtime data
 pids
@@ -54,14 +87,10 @@ pids
 *.swo
 *~
 
-# Node.js (Frontend)
+# Node.js (Frontend) - basic patterns only, detailed ones in frontend/.gitignore
 frontend/node_modules/
-frontend/npm-debug.log*
-frontend/yarn-debug.log*
-frontend/yarn-error.log*
 frontend/dist/
 frontend/build/
-frontend/.vite/
 
 # Environment variables
 .env
@@ -69,26 +98,70 @@ frontend/.vite/
 .env.development.local
 .env.test.local
 .env.production.local
+*.env
 
-# Database
+# Database files
 *.db
 *.sqlite
 *.sqlite3
+*.h2.db
 
-# Claude settings (keep local settings private)
-.claude/settings.local.json
+# Spring Boot
+spring.log
+application-*.properties
+application-*.yaml
+application-*.yml
+!application.yaml
+!application.yml
+!application.properties
 
-# Test results
+# Kotlin specific
+*.kt.bak
+target/
+
+# Test results and coverage
 test-results/
 coverage/
 *.lcov
+build/reports/
+build/test-results/
 
 # Backup files
 *.bak
 *.backup
+*.orig
+*.save
 
-# Application specific
+# Claude settings (keep local settings private)
+.claude/settings.local.json
+
+# Application specific JAR files (except Gradle wrapper)
 *.jar
 !gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# Local application configs
 application-local.yaml
+application-local.yml
+application-local.properties
 application-dev.yaml
+application-dev.yml
+application-dev.properties
+
+# Docker (if used)
+.dockerignore.backup
+
+# Maven (if ever used alongside Gradle)
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Flyway migration backups
+*.sql.bak
