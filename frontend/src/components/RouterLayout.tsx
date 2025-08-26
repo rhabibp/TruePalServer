@@ -31,17 +31,17 @@ export function RouterLayout() {
 
     return (
         <TransactionModalProvider showTransactionModal={showTransactionModal}>
-            <div className="min-h-screen bg-gray-50">
+            <div className="min-h-screen">
                 {/* Sidebar */}
                 <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
 
                 {/* Main content */}
-                <div className="md:pl-64">
+                <div className="md:pl-72 transition-all duration-300">
                     {/* Header */}
                     <Header onMenuClick={() => setSidebarOpen(true)} />
 
                     {/* Page content */}
-                    <main className="flex-1">
+                    <main className="flex-1 animate-fade-in">
                         <Outlet />
                     </main>
                 </div>
