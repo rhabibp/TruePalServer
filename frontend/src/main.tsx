@@ -15,14 +15,12 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         position="top-right"
         toastOptions={{
           duration: 4000,
-          dismissible: true,
           style: {
             background: '#363636',
             color: '#fff',
           },
           success: {
             duration: 3000,
-            dismissible: true,
             iconTheme: {
               primary: '#4ade80',
               secondary: '#fff',
@@ -30,7 +28,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           },
           error: {
             duration: 5000,
-            dismissible: true,
             iconTheme: {
               primary: '#f87171',
               secondary: '#fff',

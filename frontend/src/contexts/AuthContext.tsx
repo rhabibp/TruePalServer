@@ -184,7 +184,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     toast.success('Logged out successfully', {
       duration: 3000,
-      dismissible: true,
     });
   };
 
